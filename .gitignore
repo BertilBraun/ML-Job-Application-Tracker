@@ -1,0 +1,8 @@
+.env
+results.json
+results.html
+cache/
+__pycache__/
+*.pyc
+user_data/
+debug_blocked_*.png
