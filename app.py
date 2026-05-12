@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file
 
 from db import get_db, init_db
 from models import JobAnalysis, JobListing
@@ -51,10 +51,7 @@ def results_page():
 
 @app.route('/applications')
 def applications_page():
-    path = Path('applications.html')
-    if not path.exists():
-        return 'applications.html not found.', 404
-    return send_file(path)
+    return render_template('applications.html')
 
 
 # ── Applications API ───────────────────────────────────────────────────────────

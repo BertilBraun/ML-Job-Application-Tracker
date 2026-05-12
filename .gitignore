@@ -7,3 +7,4 @@ __pycache__/
 user_data/
 debug_blocked_*.png
 applications.db
+*.egg-info/

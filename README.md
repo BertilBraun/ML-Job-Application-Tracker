@@ -13,20 +13,19 @@ Scrapes ML/AI job listings from LinkedIn, Stepstone, and RemoteRocketship, score
 ## Setup
 
 ```bash
-pip install -r requirements.txt
-pip install -e .          # registers src/ as a package (once)
+pip install -e .          # installs all dependencies and registers src/
 playwright install chromium
 ```
 
 Create a `.env` file at the project root:
 
-```
+```env
 GEMINI_API_KEY=your_key_here
 ```
 
 ## Usage
 
-**1. Log in to job sites (once)**
+### 1. Log in to job sites (once)
 
 ```bash
 python login.py
@@ -34,7 +33,7 @@ python login.py
 
 Opens a browser window for each site. Log in manually, then press Enter. Sessions are saved to `user_data/chromium/` and reused on subsequent runs.
 
-**2. Scrape and analyze**
+### 2. Scrape and analyze
 
 ```bash
 python main.py [max_pages]   # default: 20 pages
@@ -42,7 +41,7 @@ python main.py [max_pages]   # default: 20 pages
 
 Scrapes all enabled sources, scores every listing with Gemini, and writes `results.json` and `results.html`.
 
-**3. Start the app server**
+### 3. Start the app server
 
 ```bash
 python app.py
@@ -56,14 +55,14 @@ Opens at `http://localhost:5000`.
 ## Configuration
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `PROFILE.md` | Candidate profile used by the LLM scorer |
 | `RESUME.md` | Full CV used for tailored About/cover letter generation |
 | `src/scrapers/__init__.py` | Enable/disable sources and set search URLs |
 
 ## Project structure
 
-```
+```text
 main.py              # scrape + analyze entry point
 app.py               # Flask server
 login.py             # one-time login helper
