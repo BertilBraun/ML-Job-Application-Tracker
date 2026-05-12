@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from models import JobListing, JobAnalysis
+from models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
 
 load_dotenv()
 
@@ -25,24 +25,24 @@ def _build_system_prompt() -> str:
 {profile}
 </candidate_profile>
 
-Evaluation priorities (weighted into overall_score):
+Score each dimension independently on a 0-10 scale:
 
-1. TEAM (40%): Can the candidate learn from senior ML/AI colleagues working on the same problems?
+1. TEAM: Can the candidate learn from senior ML/AI colleagues working on the same problems?
    - HIGH: dedicated ML team, senior researchers/engineers, candidate contributes to a larger ML effort
    - LOW: sole ML expert, tiny non-technical team, or "build our ML from scratch alone"
    - RED FLAG: phrasing like "you will own ML end-to-end" with no mention of existing ML colleagues
 
-2. WORK IMPACT (25%): Is the work meaningful AND technically substantive?
+2. WORK IMPACT: Is the work meaningful AND technically substantive?
    - HIGH: healthcare/medical AI, scientific research, climate, safety-critical systems, education, infrastructure
    - LOW: AI chat companions, social media engagement bait, crypto/NFT, gambling, manipulative advertising, vanity apps
    - Also flag: roles that are 90% prompt engineering / API glue with no real model work
 
-3. LOCATION (20%): The candidate wants hybrid in south Germany (Munich/Stuttgart/Karlsruhe/Freiburg area) or Switzerland/Austria. OR fully remote from Germany or DACH-EU.
+3. LOCATION: The candidate wants hybrid in south Germany (Munich/Stuttgart/Karlsruhe/Freiburg area) or Switzerland/Austria. OR fully remote from Germany or DACH-EU.
    - For non-DACH remote roles: explicitly check whether "remote" means remote-from-Germany or just within their country
    - Barcelona/Spain: flag — is it remote-from-Germany possible, or do they need someone local/Spanish-speaking?
-   - On-site outside DACH: hard no
+   - On-site outside DACH: hard no (works=False, score 0-2)
 
-4. CANDIDATE FIT (15%): Technical match and realistic acceptance probability. Be honest — many "mid" roles expect 3-5 years industry experience. The candidate has strong project depth but limited formal tenure.
+4. CANDIDATE FIT: Technical match and realistic acceptance probability. Be honest — many "mid" roles expect 3-5 years industry experience. The candidate has strong project depth but limited formal tenure.
 
 5. SALARY (context, not scored): Target ~€80k. If salary is listed, note and compare. If NOT listed, return empty string — never estimate or guess."""
     return _system_prompt
@@ -66,12 +66,12 @@ def _save_analysis_cache(url: str, system_prompt: str, analysis: JobAnalysis) ->
 
 
 def analyze_job(job: JobListing) -> JobAnalysis | None:
-    """Analyze a job listing against the candidate profile. Returns None on failure."""
     system_prompt = _build_system_prompt()
 
     cached = _load_analysis_cache(job.url, system_prompt)
     if cached is not None:
         print('      (cached)')
+        cached.overall_score = compute_overall_score(cached)
         return cached
 
     content = f"""Analyze this job listing for the candidate:
@@ -97,17 +97,18 @@ Date Posted: {job.date_added or 'Not specified'}
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-pro',
+            model='gemini-2.5-flash-lite',
             contents=content,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type='application/json',
-                response_schema=JobAnalysis,
+                response_schema=_RawJobAnalysis,
             ),
         )
         if not response.text:
             raise ValueError('Empty response from model')
-        result = JobAnalysis.model_validate_json(response.text)
+        raw = _RawJobAnalysis.model_validate_json(response.text)
+        result = JobAnalysis(**raw.model_dump(), overall_score=compute_overall_score(raw))
         _save_analysis_cache(job.url, system_prompt, result)
         return result
     except Exception as e:

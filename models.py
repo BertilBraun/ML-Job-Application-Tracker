@@ -49,6 +49,9 @@ class LocationFit(BaseModel):
     works: bool = Field(
         description="True only if the location/remote setup is genuinely compatible with the candidate's constraints"
     )
+    score: float = Field(
+        description='0-10 numeric score for location fit. If works=False use 0-3. If works=True use 7-10 based on how ideal (10=perfect south Germany hybrid or fully remote, 7=technically works but not ideal).'
+    )
 
 
 class CandidateFit(BaseModel):
@@ -60,7 +63,15 @@ class CandidateFit(BaseModel):
     gaps: list[str] = Field(description='Key gaps: skills or experience the role expects but candidate lacks')
 
 
-class JobAnalysis(BaseModel):
+class ResumeOptimization(BaseModel):
+    about: str = Field(description='Rewritten About section tailored to this specific job. Same length and style as the original — rephrase emphasis, not personality. Keep it first-person, concrete, honest.')
+    key_bullets: list[str] = Field(description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.')
+    cover_opener: str = Field(description='2-3 sentence personalized opener for a cover letter or application message. Specific to this company and role — not generic. Should feel human.')
+
+
+class _RawJobAnalysis(BaseModel):
+    """LLM output schema — no overall_score, that is computed in code."""
+
     job_summary: str = Field(description='2-3 sentences on what this job actually involves day-to-day')
     team_assessment: TeamAssessment
     work_impact: WorkImpact
@@ -69,10 +80,27 @@ class JobAnalysis(BaseModel):
     salary_note: str = Field(
         description='If salary is listed, note it and compare to ~€80k target. If NOT listed, return empty string — do not estimate or speculate.'
     )
-    overall_score: float = Field(
-        description='Position fit score 0-10. Weights: team 40% + work impact 25% + location 20% + candidate fit 15%. A great role scores high even if acceptance is uncertain. If location fit is impossible -> negate the overall score i.e. multiply by -1'
-    )
     recommendation: str = Field(
         description='Exactly one of: strong apply, apply, consider, skip. Based primarily on position fit (team/work/location), not acceptance probability.'
     )
     key_concerns: list[str] = Field(description='Deal-breakers or significant red flags')
+
+
+DEFAULT_WEIGHTS = {'team': 0.40, 'work': 0.25, 'location': 0.20, 'candidate': 0.15}
+
+
+def compute_overall_score(raw: _RawJobAnalysis, weights: dict[str, float] = DEFAULT_WEIGHTS) -> float:
+    total = sum(weights.values())
+    score = (
+        weights['team'] * raw.team_assessment.score
+        + weights['work'] * raw.work_impact.score
+        + weights['location'] * raw.location_fit.score
+        + weights['candidate'] * raw.candidate_fit.score
+    ) / total
+    if not raw.location_fit.works:
+        score = -abs(score)
+    return round(score, 2)
+
+
+class JobAnalysis(_RawJobAnalysis):
+    overall_score: float = Field(default=0.0, description='Weighted score computed in code, not by the LLM.')

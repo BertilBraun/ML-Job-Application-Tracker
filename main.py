@@ -1,7 +1,7 @@
 """
 Job Listing Scraper & Analyzer
 Usage: python main.py [max_pages]
-  max_pages: number of search result pages to scrape (default: 2)
+  max_pages: number of search result pages to scrape (default: 20)
 """
 
 import json
@@ -100,7 +100,7 @@ def print_result(job: JobListing, analysis: JobAnalysis, rank: int) -> None:
 
 
 def main() -> None:
-    max_pages = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    max_pages = int(sys.argv[1]) if len(sys.argv) > 1 else 20
 
     print(f'{BOLD}Job Listing Scraper & LLM Analyzer{RESET}')
     print(f'Scraping up to {max_pages} page(s)...')
@@ -118,10 +118,10 @@ def main() -> None:
     for i, job in enumerate(jobs, 1):
         print(f'  [{i}/{len(jobs)}] {job.title} @ {job.company}')
         analysis = analyze_job(job)
-        if analysis:
-            results.append((job, analysis))
-        else:
+        if not analysis:
             print('         -> Analysis failed, skipping')
+            continue
+        results.append((job, analysis))
 
     if not results:
         print('All analyses failed. Check GEMINI_API_KEY in .env')
@@ -135,9 +135,8 @@ def main() -> None:
     for rank, (job, analysis) in enumerate(results, 1):
         print_result(job, analysis, rank)
 
-    print(f'\n{"=" * 72}\n')
+    print('\n' + '=' * 72 + '\n')
 
-    # Quick summary table
     print(f'{BOLD}Summary:{RESET}')
     for rank, (job, analysis) in enumerate(results, 1):
         rc = rec_color(analysis.recommendation)
@@ -146,15 +145,10 @@ def main() -> None:
             f'  {rank}. {sc}{analysis.overall_score:.1f}{RESET}  [{rc}{analysis.recommendation:<12}{RESET}]  {job.title} @ {job.company}'
         )
 
-    # Save to JSON
-    output_data = []
-    for job, analysis in results:
-        output_data.append(
-            {
-                'job': job.model_dump(),
-                'analysis': analysis.model_dump(),
-            }
-        )
+    output_data = [
+        {'job': job.model_dump(), 'analysis': analysis.model_dump()}
+        for job, analysis in results
+    ]
 
     output_path = Path('results.json')
     output_path.write_text(json.dumps(output_data, indent=2, ensure_ascii=False), encoding='utf-8')
@@ -163,6 +157,7 @@ def main() -> None:
     ui_path = Path('results.html')
     ui_path.write_text(build_ui(output_data), encoding='utf-8')
     print(f'UI saved to {ui_path}')
+    print(f'Start the app server: python app.py')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Applications</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .page-header {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px;
+  }
+  h1 { font-size: 1.5rem; font-weight: 700; color: #f8fafc; }
+  .back-link { font-size: 0.85rem; color: #475569; }
+  .back-link:hover { color: #94a3b8; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  .stat {
+    background: #1e2333; border-radius: 10px; padding: 8px 16px;
+    font-size: 0.82rem; color: #94a3b8; cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .stat.active { border-color: #3b82f6; color: #e2e8f0; }
+  .stat strong { color: #f1f5f9; font-size: 1rem; display: block; }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; max-width: 920px; margin: 0 auto; }
+
+  .app-card {
+    background: #1a1f2e; border-radius: 14px;
+    border-left: 4px solid #2d3748; overflow: hidden;
+  }
+  .app-card.status-draft       { border-left-color: #475569; }
+  .app-card.status-applied      { border-left-color: #3b82f6; }
+  .app-card.status-responded    { border-left-color: #8b5cf6; }
+  .app-card.status-interviewing { border-left-color: #f59e0b; }
+  .app-card.status-offer        { border-left-color: #22c55e; }
+  .app-card.status-rejected     { border-left-color: #ef4444; }
+  .app-card.status-withdrawn    { border-left-color: #6b7280; }
+
+  .app-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+  }
+  .app-title-block { flex: 1; min-width: 0; }
+  .app-title { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-company { color: #64748b; font-size: 0.82rem; margin-top: 2px; }
+
+  .status-badge {
+    font-size: 0.7rem; font-weight: 700; padding: 3px 9px;
+    border-radius: 6px; white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .status-draft       { background: #1c1c2e; color: #94a3b8; }
+  .status-applied     { background: #1e3a5f; color: #60a5fa; }
+  .status-responded   { background: #2e1b4e; color: #c4b5fd; }
+  .status-interviewing{ background: #451a03; color: #fbbf24; }
+  .status-offer       { background: #14532d; color: #4ade80; }
+  .status-rejected    { background: #450a0a; color: #f87171; }
+  .status-withdrawn   { background: #1c1c1c; color: #6b7280; }
+
+  .app-meta { font-size: 0.78rem; color: #475569; white-space: nowrap; }
+  .toggle-btn { color: #475569; font-size: 0.85rem; transition: transform 0.2s; }
+  .toggle-btn.open { transform: rotate(180deg); }
+
+  .app-body {
+    display: none; padding: 0 16px 16px;
+    border-top: 1px solid #2d3748; padding-top: 14px;
+  }
+
+  .body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 650px) { .body-grid { grid-template-columns: 1fr; } }
+
+  .section { margin-bottom: 14px; }
+  .section-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #475569; margin-bottom: 6px;
+  }
+
+  textarea, input[type=text], input[type=date] {
+    width: 100%; background: #0f1117; color: #e2e8f0;
+    border: 1px solid #2d3748; border-radius: 8px;
+    padding: 8px 10px; font-size: 0.85rem; line-height: 1.6;
+    font-family: inherit; resize: vertical;
+  }
+  textarea:focus, input:focus { outline: 2px solid #3b82f6; }
+  textarea.about-area { min-height: 120px; }
+  textarea.cover-area { min-height: 80px; }
+  textarea.notes-area { min-height: 70px; }
+
+  .inline-row { display: flex; gap: 8px; align-items: center; }
+  .inline-row input[type=date] { width: auto; flex: 1; }
+  .inline-row input[type=text] { flex: 2; }
+
+  .btn {
+    padding: 6px 14px; border-radius: 8px; font-size: 0.82rem;
+    font-weight: 600; cursor: pointer; border: none;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-secondary { background: #1e2333; color: #94a3b8; border: 1px solid #2d3748; }
+  .btn-secondary:hover { background: #2d3748; }
+  .btn-danger { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  .btn-danger:hover { background: #7f1d1d; }
+  .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  select.status-select {
+    background: #1e2333; color: #e2e8f0; border: 1px solid #2d3748;
+    border-radius: 8px; padding: 5px 10px; font-size: 0.82rem; cursor: pointer;
+  }
+
+  .event-log { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .event-item {
+    display: flex; gap: 10px; font-size: 0.8rem; color: #94a3b8;
+    padding: 5px 0; border-bottom: 1px solid #1e2333;
+  }
+  .event-time { color: #475569; white-space: nowrap; flex-shrink: 0; }
+  .event-add { display: flex; gap: 6px; margin-top: 4px; }
+  .event-add input { flex: 1; }
+
+  .header-links { display: flex; gap: 6px; }
+  .header-link {
+    font-size: 0.72rem; padding: 3px 8px; border-radius: 6px;
+    background: #1e2333; color: #94a3b8; border: 1px solid #2d3748;
+    text-decoration: none; white-space: nowrap;
+  }
+  .header-link:hover { background: #2d3748; color: #e2e8f0; }
+
+  .body-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #2d3748; flex-wrap: wrap; }
+
+  .copy-hint { font-size: 0.72rem; color: #475569; margin-top: 3px; }
+
+  .empty-state { text-align: center; color: #475569; padding: 60px 0; font-size: 0.95rem; }
+  .empty-state a { color: #3b82f6; }
+
+  .bullets-list { list-style: none; font-size: 0.82rem; color: #94a3b8; line-height: 1.8; }
+  .bullets-list li::before { content: "• "; color: #3b82f6; }
+</style>
+</head>
+<body>
+<div style="max-width:920px;margin:0 auto">
+  <div class="page-header">
+    <h1>Applications</h1>
+    <a href="/" class="back-link">← Results</a>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <div class="cards" id="cards"><div class="empty-state">Loading...</div></div>
+</div>
+
+<script>
+const STATUSES = ['draft','applied','responded','interviewing','offer','rejected','withdrawn'];
+const STATUS_LABELS = {
+  draft: 'Draft', applied: 'Applied', responded: 'Responded',
+  interviewing: 'Interviewing', offer: 'Offer', rejected: 'Rejected', withdrawn: 'Withdrawn',
+};
+
+let allApps = [];
+let activeFilter = '';
+
+async function load() {
+  const res = await fetch('/api/applications');
+  allApps = await res.json();
+  renderStats();
+  renderCards();
+}
+
+function renderStats() {
+  const counts = {};
+  STATUSES.forEach(s => counts[s] = 0);
+  allApps.forEach(a => counts[a.status] = (counts[a.status] || 0) + 1);
+
+  const el = document.getElementById('stats');
+  el.innerHTML = `<div class="stat ${activeFilter === '' ? 'active' : ''}" onclick="setFilter('')">
+    <strong>${allApps.length}</strong> Total
+  </div>` + STATUSES.filter(s => counts[s] > 0).map(s => `
+    <div class="stat status-${s} ${activeFilter === s ? 'active' : ''}" onclick="setFilter('${s}')">
+      <strong>${counts[s]}</strong> ${STATUS_LABELS[s]}
+    </div>`).join('');
+}
+
+function setFilter(status) {
+  activeFilter = status;
+  renderStats();
+  renderCards();
+}
+
+function renderCards() {
+  const visible = activeFilter ? allApps.filter(a => a.status === activeFilter) : allApps;
+  const el = document.getElementById('cards');
+
+  if (!visible.length) {
+    el.innerHTML = `<div class="empty-state">${allApps.length ? 'No applications match this filter.' : 'No applications yet. <a href="/">Go to results</a> and click Apply on a job.'}</div>`;
+    return;
+  }
+
+  el.innerHTML = visible.map(a => renderCard(a)).join('');
+}
+
+function renderCard(a) {
+  const applied = a.applied_at ? new Date(a.applied_at).toLocaleDateString() : null;
+  const metaParts = [];
+  if (a.location) metaParts.push(a.location);
+  if (applied)    metaParts.push(`Applied ${applied}`);
+  if (a.next_step_label && a.next_step_date)
+    metaParts.push(`Next: ${a.next_step_label} (${a.next_step_date})`);
+
+  const links = [];
+  if (a.listing_url) links.push(`<a href="${a.listing_url}" target="_blank" class="header-link">View listing</a>`);
+  if (a.apply_url)   links.push(`<a href="${a.apply_url}"  target="_blank" class="header-link">Apply →</a>`);
+
+  return `<div class="app-card status-${a.status}" id="card-${a.id}">
+  <div class="app-header" onclick="toggleCard(${a.id})">
+    <div class="app-title-block">
+      <div class="app-title">${esc(a.job_title)}</div>
+      <div class="app-company">${esc(a.company)}</div>
+    </div>
+    <div class="header-links" onclick="event.stopPropagation()">${links.join('')}</div>
+    <span class="status-badge status-${a.status}">${STATUS_LABELS[a.status]}</span>
+    ${metaParts.length ? `<span class="app-meta">${esc(metaParts.join(' · '))}</span>` : ''}
+    <span class="toggle-btn" id="toggle-${a.id}">▼</span>
+  </div>
+  <div class="app-body" id="body-${a.id}">
+    <div class="body-grid">
+
+      <div>
+        <div class="section">
+          <div class="section-label">Status</div>
+          <select class="status-select" onchange="updateStatus(${a.id}, this.value)">
+            ${STATUSES.map(s => `<option value="${s}" ${s === a.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Next step</div>
+          <div class="inline-row">
+            <input type="date" id="nsd-${a.id}" value="${a.next_step_date || ''}" onchange="saveNextStep(${a.id})">
+            <input type="text" id="nsl-${a.id}" value="${esc(a.next_step_label || '')}" placeholder="e.g. Technical interview" onblur="saveNextStep(${a.id})">
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Notes</div>
+          <textarea class="notes-area" id="notes-${a.id}" onblur="saveNotes(${a.id})" placeholder="Anything relevant…">${esc(a.notes || '')}</textarea>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Event log</div>
+          <div class="event-log" id="events-${a.id}">Loading…</div>
+          <div class="event-add">
+            <input type="text" id="event-input-${a.id}" placeholder="Add note…" onkeydown="if(event.key==='Enter') addEvent(${a.id})">
+            <button class="btn btn-secondary btn-sm" onclick="addEvent(${a.id})">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div class="section-label">Tailored About</div>
+          <textarea class="about-area" id="about-${a.id}" onblur="saveAbout(${a.id})" placeholder="Generate materials to populate…">${esc(a.about_text || '')}</textarea>
+          <div class="copy-hint">Click to edit · select all to copy</div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Cover letter opener</div>
+          <textarea class="cover-area" id="cover-${a.id}" onblur="saveCover(${a.id})" placeholder="Generate materials to populate…">${esc(a.cover_letter || '')}</textarea>
+        </div>
+
+        <div class="section" id="bullets-section-${a.id}" style="${a.about_text ? '' : 'display:none'}">
+          <div class="section-label">Key bullets</div>
+          <ul class="bullets-list" id="bullets-${a.id}"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="body-actions">
+      <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id})">
+        ${a.about_text ? 'Regenerate materials' : 'Generate materials'}
+      </button>
+      ${!a.applied_at ? `<button class="btn btn-secondary btn-sm" onclick="markApplied(${a.id})">Mark as applied</button>` : ''}
+      <button class="btn btn-danger btn-sm" onclick="deleteApp(${a.id})">Delete</button>
+    </div>
+  </div>
+</div>`;
+}
+
+async function toggleCard(id) {
+  const body = document.getElementById(`body-${id}`);
+  const toggle = document.getElementById(`toggle-${id}`);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  toggle.classList.toggle('open', !open);
+  if (!open) loadEvents(id);
+}
+
+async function loadEvents(id) {
+  const res = await fetch(`/api/applications/${id}/events`);
+  const events = await res.json();
+  const el = document.getElementById(`events-${id}`);
+  if (!el) return;
+  el.innerHTML = events.length
+    ? events.map(e => `<div class="event-item"><span class="event-time">${fmtDate(e.created_at)}</span><span>${esc(e.content)}</span></div>`).join('')
+    : '<div style="color:#475569;font-size:0.8rem">No events yet.</div>';
+}
+
+async function addEvent(id) {
+  const input = document.getElementById(`event-input-${id}`);
+  const content = input.value.trim();
+  if (!content) return;
+  await fetch(`/api/applications/${id}/events`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content}),
+  });
+  input.value = '';
+  loadEvents(id);
+}
+
+async function updateStatus(id, status) {
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status}),
+  });
+  const card = document.getElementById(`card-${id}`);
+  STATUSES.forEach(s => card.classList.remove(`status-${s}`));
+  card.classList.add(`status-${status}`);
+  card.querySelector('.status-badge').className = `status-badge status-${status}`;
+  card.querySelector('.status-badge').textContent = STATUS_LABELS[status];
+  loadEvents(id);
+  const app = allApps.find(a => a.id === id);
+  if (app) app.status = status;
+  renderStats();
+}
+
+async function markApplied(id) {
+  const now = new Date().toISOString();
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'applied', applied_at: now}),
+  });
+  await load();
+}
+
+async function saveNextStep(id) {
+  const date  = document.getElementById(`nsd-${id}`).value;
+  const label = document.getElementById(`nsl-${id}`).value.trim();
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({next_step_date: date, next_step_label: label}),
+  });
+}
+
+async function saveNotes(id) {
+  const notes = document.getElementById(`notes-${id}`).value;
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({notes}),
+  });
+}
+
+async function saveAbout(id) {
+  const about_text = document.getElementById(`about-${id}`).value;
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({about_text}),
+  });
+}
+
+async function saveCover(id) {
+  const cover_letter = document.getElementById(`cover-${id}`).value;
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cover_letter}),
+  });
+}
+
+async function generateMaterials(id) {
+  const btn = document.getElementById(`gen-btn-${id}`);
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const res = await fetch(`/api/applications/${id}/generate`, {method: 'POST'});
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Generation failed'); return; }
+    document.getElementById(`about-${id}`).value = data.about;
+    document.getElementById(`cover-${id}`).value = data.cover_letter;
+    const bulletsSection = document.getElementById(`bullets-section-${id}`);
+    const bulletsList    = document.getElementById(`bullets-${id}`);
+    if (data.key_bullets?.length) {
+      bulletsList.innerHTML = data.key_bullets.map(b => `<li>${esc(b)}</li>`).join('');
+      bulletsSection.style.display = '';
+    }
+    btn.textContent = 'Regenerate materials';
+    loadEvents(id);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteApp(id) {
+  if (!confirm('Delete this application? This cannot be undone.')) return;
+  await fetch(`/api/applications/${id}`, {method: 'DELETE'});
+  allApps = allApps.filter(a => a.id !== id);
+  renderStats();
+  renderCards();
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+load();
+</script>
+</body>
+</html>
