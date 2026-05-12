@@ -71,7 +71,7 @@ class ResumeOptimization(BaseModel):
         description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.'
     )
     cover_opener: str = Field(
-        description='2-3 sentence personalized opener for a cover letter or application message. Specific to this company and role — not generic. Should feel human.'
+        description='Full cover letter in 3 short paragraphs: (1) why this specific role/problem, (2) one specific relevant connection or the breadth/fast-learner argument, (3) honest close acknowledging career stage, ending on wanting to learn from the team. Direct, humble tone — no self-promotion, no achievement enumeration.'
     )
 
 

@@ -41,19 +41,55 @@ def _save_cache(job_url: str, result: ResumeOptimization) -> None:
     _cache_path(job_url).write_text(result.model_dump_json(), encoding='utf-8')
 
 
-_SYSTEM = """You are helping a job applicant tailor their resume for a specific role.
+_SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
 You will receive the candidate's full CV and a job listing. Your task:
 
-1. Rewrite the About section to better match the role's emphasis — same honest, direct voice, same length.
-   Shift which competencies and experiences are foregrounded; do not invent anything.
+1. ABOUT SECTION REWRITE
+   Rewrite the About section to foreground the experience and competencies most relevant to this role.
+   Same honest, direct voice, same length. Do not invent anything not in the CV. Just shift emphasis.
 
-2. Select 3-5 existing bullet points from the CV's experience/projects sections that are most directly
-   relevant to this role. Quote them verbatim or rephrase slightly for relevance. These are the bullets
-   the candidate should move to the top of their most relevant experience entries.
+2. KEY BULLETS
+   Select 3–5 existing bullet points from the CV's experience/projects sections that are most directly
+   relevant to this role. Quote verbatim or rephrase slightly. These are bullets to lead with.
 
-3. Write a 2-3 sentence cover letter opener that is specific to this company and role.
-   Reference something concrete about the company or job description. No filler phrases like
-   "I am excited to apply". Sound like a person, not a template."""
+3. COVER LETTER (full letter, 3 short paragraphs)
+   Write a complete cover letter following this exact structure:
+   - Paragraph 1: Why this specific role or problem space is interesting to the candidate. Be specific
+     to the company and what they're building — not generic enthusiasm.
+   - Paragraph 2: One specific, relevant connection between the candidate's background and this role.
+     Either a directly relevant project/experience, or the fast-learner/breadth argument briefly made.
+     Do not enumerate multiple achievements — pick one thread and follow it.
+   - Paragraph 3: Honest close. Acknowledge career stage without apology. End on wanting to learn from
+     the team, not on confidence in the candidate's own abilities.
+
+   TONE RULES — follow these strictly:
+   - Direct and humble. No self-promotional framing.
+   - Never enumerate achievements in prose ("I built X, I built Y, I built Z").
+   - Never tell the reader what to value ("this matters more than credentials").
+   - No superlatives or self-aggrandizing phrases ("the clearest signal I can offer", "uniquely positioned").
+   - No filler openers ("I am excited to apply", "I am writing to express my interest").
+   - No phrases like "at the intersection of research and production" unless the role explicitly uses that framing.
+   - Sound like a person writing to another person, not a template.
+
+   REFERENCE EXAMPLE (good tone — study the register, not the content):
+   ---
+   What interests me most in AI right now is long-horizon agentic systems — AI that can operate
+   autonomously and conduct research over extended time horizons. The work Anthropic is doing on
+   autonomous capabilities, including the security research from recent Claude releases, is the most
+   compelling demonstration that this can be developed both ambitiously and safely. The post-training
+   team is where that gets built at the model level — the fine-tuning, evaluation, and alignment
+   methodology that determines whether a capable model is also trustworthy. Getting capabilities right
+   is one problem; getting alignment right at the same time is the harder one.
+
+   I pick up new areas quickly — in roughly two years I've built systems across reinforcement learning,
+   computer vision, LLM pipelines, and graph neural networks, with real results in each. The most
+   directly relevant piece is my Master's thesis, where I ran DPO fine-tuning at scale with synthetically
+   generated preference data and built the evaluation infrastructure alongside it — that work became a
+   first-author ACL 2025 publication.
+
+   I'm applying at an earlier stage than most people here — this is where I want to grow, and it's
+   genuinely the work I care about most.
+   ---"""
 
 
 def optimize_resume(job: JobListing, analysis: JobAnalysis) -> ResumeOptimization | None:
