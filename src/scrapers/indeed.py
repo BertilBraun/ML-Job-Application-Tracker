@@ -1,8 +1,14 @@
+import os
+from dotenv import load_dotenv
 from models import JobListing
 from scrapers.base import load_detail_cache, save_detail_cache
 from scrapers.browser import get_context, human_delay, wait_if_blocked
 
-SEARCH_URL = 'https://de.indeed.com/jobs?q=Machine+Learning+Engineer&l=Germany&from=searchOnDesktopSerp'
+load_dotenv()
+
+SEARCH_URL = os.environ.get('INDEED_SEARCH_URL', '')
+if not SEARCH_URL:
+    raise ValueError('INDEED_SEARCH_URL not set in .env — see .env.example')
 BLOCK = ['#captcha-title', "iframe[title*='recaptcha']", '.cf-challenge-running', "h1:has-text('Verify')"]
 BASE = 'https://de.indeed.com'
 

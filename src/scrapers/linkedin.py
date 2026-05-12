@@ -1,8 +1,14 @@
+import os
+from dotenv import load_dotenv
 from models import JobListing
 from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
 from scrapers.browser import get_context, human_delay, wait_if_blocked
 
-SEARCH_URL = 'https://www.linkedin.com/jobs/search-results/?currentJobId=4406074593&keywords=applied%20ml%20research%20engineer%20full-time%20or%20part-time%20posted%20in%20the%20past%20month%20remote%20or%20hybrid&origin=JOB_SEARCH_PAGE_LOCATION_AUTOCOMPLETE&geoId=91000006'
+load_dotenv()
+
+SEARCH_URL = os.environ.get('LINKEDIN_SEARCH_URL', '')
+if not SEARCH_URL:
+    raise ValueError('LINKEDIN_SEARCH_URL not set in .env — see .env.example')
 BLOCK = [
     'div.challenge-dialog',
     '#captcha-internal',

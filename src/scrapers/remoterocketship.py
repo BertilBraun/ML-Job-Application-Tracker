@@ -1,24 +1,17 @@
+import os
 import time
 from bs4 import Tag
+from dotenv import load_dotenv
 from models import JobListing
 from scrapers.base import fetch_soup, load_detail_cache, save_detail_cache
 
+load_dotenv()
+
 BASE_URL = 'https://www.remoterocketship.com'
 
-SEARCH_URL = (
-    'https://www.remoterocketship.com/country/europe/jobs/machine-learning-engineer/'
-    '?page=1&sort=DateAdded'
-    '&jobTitle=Machine+Learning+Engineer%2CAI+Engineer%2CLLM+Engineer'
-    '&locations=Germany%2CEurope'
-    '&minSalary=70000'
-    '&seniority=junior%2Cmid'
-    '&requiredLanguages=de%2Cen'
-    '&companySize=11%2C50-51%2C200-201%2C500-501%2C1000-1001%2C5000-5001%2C10000'
-    '&techStack=PyTorch'
-    '&excludeIndustries=Beauty%2CCrypto'
-    '&countrySlug=europe'
-    '&jobsInput=machine-learning-engineer'
-)
+SEARCH_URL = os.environ.get('REMOTEROCKETSHIP_SEARCH_URL', '')
+if not SEARCH_URL:
+    raise ValueError('REMOTEROCKETSHIP_SEARCH_URL not set in .env — see .env.example')
 
 
 def _classify_pill(text: str, has_employee_img: bool) -> str:

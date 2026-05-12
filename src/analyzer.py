@@ -37,10 +37,9 @@ Score each dimension independently on a 0-10 scale:
    - LOW: AI chat companions, social media engagement bait, crypto/NFT, gambling, manipulative advertising, vanity apps
    - Also flag: roles that are 90% prompt engineering / API glue with no real model work
 
-3. LOCATION: The candidate wants hybrid in south Germany (Munich/Stuttgart/Karlsruhe/Freiburg area) or Switzerland/Austria. OR fully remote from Germany or DACH-EU.
-   - For non-DACH remote roles: explicitly check whether "remote" means remote-from-Germany or just within their country
-   - Barcelona/Spain: flag — is it remote-from-Germany possible, or do they need someone local/Spanish-speaking?
-   - On-site outside DACH: hard no (works=False, score 0-2)
+3. LOCATION: Assess against the candidate's location and remote-work preferences stated in the profile.
+   - For non-local remote roles: check whether "remote" genuinely means remote-from-the-candidate's-country or is just marketing
+   - On-site roles outside acceptable locations: hard no (works=False, score 0-2)
 
 4. CANDIDATE FIT: Technical match and realistic acceptance probability. Be honest — many "mid" roles expect 3-5 years industry experience. The candidate has strong project depth but limited formal tenure.
 

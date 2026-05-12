@@ -44,7 +44,7 @@ class WorkImpact(BaseModel):
 
 class LocationFit(BaseModel):
     reasoning: str = Field(
-        description='Does the location/remote setup work for the candidate? They want: hybrid in south Germany (Munich/Stuttgart/Karlsruhe/Freiburg) or Switzerland/Austria, OR fully remote from Germany. For non-DACH roles explicitly assess whether remote-from-Germany is genuinely possible or just marketing.'
+        description='Does the location/remote setup work for the candidate based on their stated preferences in the profile? For non-local remote roles explicitly assess whether remote-from-their-country is genuinely possible or just marketing.'
     )
     works: bool = Field(
         description="True only if the location/remote setup is genuinely compatible with the candidate's constraints"
