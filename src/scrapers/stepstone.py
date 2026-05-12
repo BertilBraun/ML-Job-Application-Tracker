@@ -1,5 +1,5 @@
 from models import JobListing
-from scrapers.base import load_detail_cache, save_detail_cache
+from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
 from scrapers.browser import get_context, human_delay, wait_if_blocked
 
 SEARCH_URL = 'https://www.stepstone.de/jobs/machine-learning-engineer?sort=2&action=facet_selected%3bcontractTypes%3b222&ct=222&wfh=1&wfh=2&us=70000&searchOrigin=Resultlist_top-search'
@@ -124,6 +124,7 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobLis
                     }
                     save_detail_cache(cd['url'], details)
 
+                pause_if_suspicious('Stepstone', cd['title'], cd['company'], cd['url'], details.get('description', ''), cd['location'])
                 jobs.append(
                     JobListing(
                         title=cd['title'],

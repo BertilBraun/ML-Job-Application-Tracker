@@ -8,7 +8,7 @@ from models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_sco
 
 load_dotenv()
 
-CACHE_DIR = Path(__file__).parent / 'cache'
+CACHE_DIR = Path(__file__).parent.parent / 'cache'
 
 client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 
@@ -18,7 +18,7 @@ _system_prompt: str | None = None
 def _build_system_prompt() -> str:
     global _system_prompt
     if _system_prompt is None:
-        profile = (Path(__file__).parent / 'PROFILE.md').read_text(encoding='utf-8')
+        profile = (Path(__file__).parent.parent / 'PROFILE.md').read_text(encoding='utf-8')
         _system_prompt = f"""You are evaluating job listings for a specific candidate. Your goal is to assess POSITION FIT — how good is this job for the candidate — not primarily whether they'll be accepted. A great position scores high even with uncertain acceptance.
 
 <candidate_profile>

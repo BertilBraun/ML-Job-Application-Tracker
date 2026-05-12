@@ -1,5 +1,5 @@
 from models import JobListing
-from scrapers.base import load_detail_cache, save_detail_cache
+from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
 from scrapers.browser import get_context, human_delay, wait_if_blocked
 
 SEARCH_URL = 'https://www.linkedin.com/jobs/search-results/?currentJobId=4406074593&keywords=applied%20ml%20research%20engineer%20full-time%20or%20part-time%20posted%20in%20the%20past%20month%20remote%20or%20hybrid&origin=JOB_SEARCH_PAGE_LOCATION_AUTOCOMPLETE&geoId=91000006'
@@ -134,6 +134,7 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
 
                     human_delay(2, 4)
 
+                pause_if_suspicious('LinkedIn', title, company, url, description, location)
                 jobs.append(
                     JobListing(
                         title=title,

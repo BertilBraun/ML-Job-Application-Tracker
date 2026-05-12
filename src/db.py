@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
-DB_PATH = Path(__file__).parent / 'applications.db'
+DB_PATH = Path(__file__).parent.parent / 'applications.db'
 
 
 @contextmanager

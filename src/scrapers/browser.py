@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page
 
-USER_DATA_DIR = Path(__file__).parent.parent / "user_data" / "chromium"
+USER_DATA_DIR = Path(__file__).parent.parent.parent / "user_data" / "chromium"
 
 
 def human_delay(lo: float = 1.5, hi: float = 4.0) -> None:

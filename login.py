@@ -4,6 +4,11 @@ Run this once: python login.py
 Sessions are saved to user_data/chromium/ and reused automatically.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
 from scrapers.browser import get_context
 
 SITES = [

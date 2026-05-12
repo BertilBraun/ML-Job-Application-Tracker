@@ -8,8 +8,8 @@ from models import JobListing, JobAnalysis, ResumeOptimization
 
 load_dotenv()
 
-CACHE_DIR = Path(__file__).parent / 'cache'
-RESUME_PATH = Path(__file__).parent / 'RESUME.md'
+CACHE_DIR = Path(__file__).parent.parent / 'cache'
+RESUME_PATH = Path(__file__).parent.parent / 'RESUME.md'
 
 client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 

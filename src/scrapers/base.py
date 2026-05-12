@@ -6,7 +6,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 from pathlib import Path
 
-CACHE_DIR = Path(__file__).parent.parent / "cache"
+CACHE_DIR = Path(__file__).parent.parent.parent / "cache"
 
 _session = cloudscraper.create_scraper(
     browser={"browser": "chrome", "platform": "windows", "mobile": False}
@@ -40,3 +40,18 @@ def load_detail_cache(url: str) -> dict | None:
 def save_detail_cache(url: str, data: dict) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
     _detail_cache_path(url).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def pause_if_suspicious(source: str, title: str, company: str, url: str, description: str, location: str) -> None:
+    empty = [name for name, val in [('title', title), ('company', company), ('description', description)] if not val]
+    if not empty:
+        return
+    print(f'\n{"!" * 60}')
+    print(f'  [{source}] SUSPICIOUS JOB — empty fields: {", ".join(empty)}')
+    print(f'  Title      : {title!r}')
+    print(f'  Company    : {company!r}')
+    print(f'  Location   : {location!r}')
+    print(f'  URL        : {url}')
+    print(f'  Description: {description[:300]!r}{"..." if len(description) > 300 else ""}')
+    print(f'{"!" * 60}')
+    input('  Press Enter to continue (or Ctrl+C to abort)...')
