@@ -14,6 +14,7 @@ Scrapes ML/AI job listings from LinkedIn, Stepstone, and RemoteRocketship, score
 
 ```bash
 pip install -r requirements.txt
+pip install -e .          # registers src/ as a package (once)
 playwright install chromium
 ```
 

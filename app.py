@@ -6,11 +6,8 @@ Run: python app.py
 """
 
 import json
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from flask import Flask, jsonify, request, send_file
 
