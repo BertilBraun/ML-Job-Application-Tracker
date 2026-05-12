@@ -1,103 +1,98 @@
 """Generate results.html from results.json. Run: python build_ui.py"""
+
 import json
 import sys
 from pathlib import Path
 
-RESULTS_PATH = Path("results.json")
-OUTPUT_PATH = Path("results.html")
+RESULTS_PATH = Path('results.json')
+OUTPUT_PATH = Path('results.html')
 
 
 def score_class(score: float) -> str:
     if score >= 7:
-        return "good"
+        return 'good'
     if score >= 5:
-        return "mid"
-    return "bad"
+        return 'mid'
+    return 'bad'
 
 
 def rec_class(rec: str) -> str:
     r = rec.lower()
-    if "strong" in r:
-        return "rec-strong"
-    if r == "apply":
-        return "rec-apply"
-    if r == "consider":
-        return "rec-consider"
-    return "rec-skip"
+    if 'strong' in r:
+        return 'rec-strong'
+    if r == 'apply':
+        return 'rec-apply'
+    if r == 'consider':
+        return 'rec-consider'
+    return 'rec-skip'
 
 
 def escape(s: str) -> str:
-    return (
-        s.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
 
-def render_tags(items: list[str], cls: str = "tag") -> str:
-    return "".join(f'<span class="{cls}">{escape(t)}</span>' for t in items)
+def render_tags(items: list[str], cls: str = 'tag') -> str:
+    return ''.join(f'<span class="{cls}">{escape(t)}</span>' for t in items)
 
 
 def render_card(entry: dict, rank: int) -> str:
-    job = entry["job"]
-    a = entry["analysis"]
-    sc = score_class(a["overall_score"])
-    rc = rec_class(a["recommendation"])
+    job = entry['job']
+    a = entry['analysis']
+    sc = score_class(a['overall_score'])
+    rc = rec_class(a['recommendation'])
 
     meta = []
-    if job.get("location"):
+    if job.get('location'):
         meta.append(f'<span class="meta-item">📍 {escape(job["location"])}</span>')
-    if job.get("salary"):
+    if job.get('salary'):
         meta.append(f'<span class="meta-item">💰 {escape(job["salary"])}</span>')
-    if job.get("company_size"):
+    if job.get('company_size'):
         meta.append(f'<span class="meta-item">👥 {escape(job["company_size"])}</span>')
-    if job.get("date_added"):
+    if job.get('date_added'):
         meta.append(f'<span class="meta-item">🕒 {escape(job["date_added"])}</span>')
 
-    _industry_noise = {"AI", "Artificial Intelligence", "Machine Learning", "Machine Learning Engineer", "Deep Learning"}
-    industries = [t for t in job.get("industries", []) if not any(n in t for n in _industry_noise)]
-    industry_html = render_tags(industries, "tag tag-industry")
+    _industry_noise = {
+        'AI',
+        'Artificial Intelligence',
+        'Machine Learning',
+        'Machine Learning Engineer',
+        'Deep Learning',
+    }
+    industries = [t for t in job.get('industries', []) if not any(n in t for n in _industry_noise)]
+    industry_html = render_tags(industries, 'tag tag-industry')
 
-    raw_sen = [s.lower() for s in job.get("seniority", [])]
-    has_junior = any("junior" in s for s in raw_sen)
-    has_mid    = any("mid" in s for s in raw_sen)
-    has_senior = any("senior" in s for s in raw_sen)
+    raw_sen = [s.lower() for s in job.get('seniority', [])]
+    has_junior = any('junior' in s for s in raw_sen)
+    has_mid = any('mid' in s for s in raw_sen)
+    has_senior = any('senior' in s for s in raw_sen)
     sen_tags: list[str] = []
     if has_junior and has_mid:
-        sen_tags.append("🟢 Junior / Mid")
+        sen_tags.append('🟢 Junior / Mid')
     elif has_junior:
-        sen_tags.append("🟢 Junior")
+        sen_tags.append('🟢 Junior')
     if has_mid and has_senior:
-        sen_tags.append("🟡 Mid / Senior")
+        sen_tags.append('🟡 Mid / Senior')
     elif has_mid and not has_junior:
-        sen_tags.append("🟢 Mid")
+        sen_tags.append('🟢 Mid')
     if has_senior and not has_mid:
-        sen_tags.append("🟡 Senior")
-    seniority_html = render_tags(sen_tags, "tag tag-seniority")
+        sen_tags.append('🟡 Senior')
+    seniority_html = render_tags(sen_tags, 'tag tag-seniority')
 
-    strengths_html = "".join(
-        f'<li class="strength">✓ {escape(s)}</li>'
-        for s in a["candidate_fit"].get("strengths", [])
+    strengths_html = ''.join(
+        f'<li class="strength">✓ {escape(s)}</li>' for s in a['candidate_fit'].get('strengths', [])
     )
-    gaps_html = "".join(
-        f'<li class="gap">✗ {escape(g)}</li>'
-        for g in a["candidate_fit"].get("gaps", [])
-    )
-    concerns_html = "".join(
-        f'<li class="concern">⚠ {escape(c)}</li>'
-        for c in a.get("key_concerns", [])
-    )
+    gaps_html = ''.join(f'<li class="gap">✗ {escape(g)}</li>' for g in a['candidate_fit'].get('gaps', []))
+    concerns_html = ''.join(f'<li class="concern">⚠ {escape(c)}</li>' for c in a.get('key_concerns', []))
 
     team_s = a['team_assessment']['score']
     work_s = a['work_impact']['score']
-    loc_s  = a['location_fit']['score']
+    loc_s = a['location_fit']['score']
     cand_s = a['candidate_fit']['score']
     loc_works = str(a['location_fit']['works']).lower()
 
-    job_url     = escape(job.get('url', ''))
+    job_url = escape(job.get('url', ''))
     listing_url = escape(job.get('url', ''))
-    apply_url   = escape(job.get('apply_url') or job.get('url', ''))
+    apply_url = escape(job.get('apply_url') or job.get('url', ''))
 
     return f"""
 <div class="card {sc}"
@@ -182,14 +177,14 @@ def render_card(entry: dict, rank: int) -> str:
 
 
 def build(data: list[dict]) -> str:
-    total   = len(data)
-    strong  = sum(1 for d in data if "strong" in d["analysis"]["recommendation"].lower())
-    apply_  = sum(1 for d in data if d["analysis"]["recommendation"].lower() == "apply")
-    consider= sum(1 for d in data if d["analysis"]["recommendation"].lower() == "consider")
-    skip    = sum(1 for d in data if d["analysis"]["recommendation"].lower() == "skip")
-    avg     = sum(d["analysis"]["overall_score"] for d in data) / total if total else 0
+    total = len(data)
+    strong = sum(1 for d in data if 'strong' in d['analysis']['recommendation'].lower())
+    apply_ = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'apply')
+    consider = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'consider')
+    skip = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'skip')
+    avg = sum(d['analysis']['overall_score'] for d in data) / total if total else 0
 
-    cards_html = "\n".join(render_card(entry, i + 1) for i, entry in enumerate(data))
+    cards_html = '\n'.join(render_card(entry, i + 1) for i, entry in enumerate(data))
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -600,14 +595,14 @@ fetch('/api/applications')
 
 def main() -> None:
     if not RESULTS_PATH.exists():
-        print("results.json not found — run main.py first.")
+        print('results.json not found — run main.py first.')
         sys.exit(1)
 
-    data = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    data = json.loads(RESULTS_PATH.read_text(encoding='utf-8'))
     html = build(data)
-    OUTPUT_PATH.write_text(html, encoding="utf-8")
-    print(f"Written {OUTPUT_PATH} ({len(data)} jobs)")
+    OUTPUT_PATH.write_text(html, encoding='utf-8')
+    print(f'Written {OUTPUT_PATH} ({len(data)} jobs)')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

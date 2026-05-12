@@ -64,9 +64,15 @@ class CandidateFit(BaseModel):
 
 
 class ResumeOptimization(BaseModel):
-    about: str = Field(description='Rewritten About section tailored to this specific job. Same length and style as the original — rephrase emphasis, not personality. Keep it first-person, concrete, honest.')
-    key_bullets: list[str] = Field(description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.')
-    cover_opener: str = Field(description='2-3 sentence personalized opener for a cover letter or application message. Specific to this company and role — not generic. Should feel human.')
+    about: str = Field(
+        description='Rewritten About section tailored to this specific job. Same length and style as the original — rephrase emphasis, not personality. Keep it first-person, concrete, honest.'
+    )
+    key_bullets: list[str] = Field(
+        description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.'
+    )
+    cover_opener: str = Field(
+        description='2-3 sentence personalized opener for a cover letter or application message. Specific to this company and role — not generic. Should feel human.'
+    )
 
 
 class _RawJobAnalysis(BaseModel):

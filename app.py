@@ -41,6 +41,7 @@ def _find_job(job_url: str) -> tuple[JobListing, JobAnalysis] | None:
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
+
 @app.route('/')
 def results_page():
     path = Path('results.html')
@@ -55,6 +56,7 @@ def applications_page():
 
 
 # ── Applications API ───────────────────────────────────────────────────────────
+
 
 @app.route('/api/applications', methods=['GET'])
 def list_applications():
@@ -71,16 +73,14 @@ def create_application():
         return jsonify({'error': 'job_url required'}), 400
 
     with get_db() as conn:
-        existing = conn.execute(
-            'SELECT id FROM applications WHERE job_url = ?', (job_url,)
-        ).fetchone()
+        existing = conn.execute('SELECT id FROM applications WHERE job_url = ?', (job_url,)).fetchone()
         if existing:
             return jsonify({'id': existing['id'], 'existing': True})
 
         conn.execute(
-            '''INSERT INTO applications
+            """INSERT INTO applications
                (job_url, job_title, company, listing_url, apply_url, location, salary, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)''',
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)""",
             (
                 job_url,
                 data.get('job_title', ''),
@@ -124,11 +124,13 @@ def generate_materials(app_id: int):
             'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
             (app_id, _now(), 'Generated tailored About and cover letter'),
         )
-        return jsonify({
-            'about': opt.about,
-            'cover_letter': opt.cover_opener,
-            'key_bullets': opt.key_bullets,
-        })
+        return jsonify(
+            {
+                'about': opt.about,
+                'cover_letter': opt.cover_opener,
+                'key_bullets': opt.key_bullets,
+            }
+        )
 
 
 @app.route('/api/applications/<int:app_id>', methods=['PATCH'])

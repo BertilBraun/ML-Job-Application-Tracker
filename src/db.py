@@ -20,7 +20,7 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
 
 def init_db() -> None:
     with get_db() as conn:
-        conn.executescript('''
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS applications (
                 id                INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_url           TEXT    NOT NULL UNIQUE,
@@ -45,4 +45,4 @@ def init_db() -> None:
                 created_at       TEXT    NOT NULL,
                 content          TEXT    NOT NULL
             );
-        ''')
+        """)

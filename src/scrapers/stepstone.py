@@ -124,7 +124,9 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobLis
                     }
                     save_detail_cache(cd['url'], details)
 
-                pause_if_suspicious('Stepstone', cd['title'], cd['company'], cd['url'], details.get('description', ''), cd['location'])
+                pause_if_suspicious(
+                    'Stepstone', cd['title'], cd['company'], cd['url'], details.get('description', ''), cd['location']
+                )
                 jobs.append(
                     JobListing(
                         title=cd['title'],

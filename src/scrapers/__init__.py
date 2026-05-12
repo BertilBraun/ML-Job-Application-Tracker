@@ -7,7 +7,6 @@ Source registry. To add a new site:
 from models import JobListing
 from scrapers.remoterocketship import scrape_jobs as _scrape_rrs, SEARCH_URL as _RRS_URL
 from scrapers.stepstone import scrape_jobs as _scrape_stepstone, SEARCH_URL as _SS_URL
-from scrapers.indeed import scrape_jobs as _scrape_indeed, SEARCH_URL as _IN_URL
 from scrapers.linkedin import scrape_jobs as _scrape_linkedin, SEARCH_URL as _LI_URL
 
 SOURCES = [

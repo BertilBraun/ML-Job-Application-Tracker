@@ -145,10 +145,7 @@ def main() -> None:
             f'  {rank}. {sc}{analysis.overall_score:.1f}{RESET}  [{rc}{analysis.recommendation:<12}{RESET}]  {job.title} @ {job.company}'
         )
 
-    output_data = [
-        {'job': job.model_dump(), 'analysis': analysis.model_dump()}
-        for job, analysis in results
-    ]
+    output_data = [{'job': job.model_dump(), 'analysis': analysis.model_dump()} for job, analysis in results]
 
     output_path = Path('results.json')
     output_path.write_text(json.dumps(output_data, indent=2, ensure_ascii=False), encoding='utf-8')
@@ -157,7 +154,7 @@ def main() -> None:
     ui_path = Path('results.html')
     ui_path.write_text(build_ui(output_data), encoding='utf-8')
     print(f'UI saved to {ui_path}')
-    print(f'Start the app server: python app.py')
+    print('Start the app server: python app.py')
 
 
 if __name__ == '__main__':

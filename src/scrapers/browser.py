@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page
 
-USER_DATA_DIR = Path(__file__).parent.parent.parent / "user_data" / "chromium"
+USER_DATA_DIR = Path(__file__).parent.parent.parent / 'user_data' / 'chromium'
 
 
 def human_delay(lo: float = 1.5, hi: float = 4.0) -> None:
@@ -18,11 +18,11 @@ def get_context():
         user_data_dir=str(USER_DATA_DIR),
         headless=False,
         slow_mo=80,
-        viewport={"width": 1280, "height": 900},
-        locale="de-DE",
-        timezone_id="Europe/Berlin",
-        args=["--disable-blink-features=AutomationControlled"],
-        ignore_default_args=["--enable-automation"],
+        viewport={'width': 1280, 'height': 900},
+        locale='de-DE',
+        timezone_id='Europe/Berlin',
+        args=['--disable-blink-features=AutomationControlled'],
+        ignore_default_args=['--enable-automation'],
     )
     return pw, context
 
@@ -32,10 +32,10 @@ def wait_if_blocked(page: Page, indicators: list[str]) -> None:
     for sel in indicators:
         try:
             if page.locator(sel).count() > 0:
-                screenshot = Path(f"debug_blocked_{int(time.time())}.png")
+                screenshot = Path(f'debug_blocked_{int(time.time())}.png')
                 page.screenshot(path=str(screenshot))
-                print(f"\n  !! Blocked ({sel}). Screenshot: {screenshot}")
-                print("     Solve in the browser window, then press Enter to continue...")
+                print(f'\n  !! Blocked ({sel}). Screenshot: {screenshot}')
+                print('     Solve in the browser window, then press Enter to continue...')
                 input()
                 return
         except Exception:
