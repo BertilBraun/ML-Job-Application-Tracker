@@ -595,7 +595,7 @@ fetch('/api/applications')
 
 def main() -> None:
     if not RESULTS_PATH.exists():
-        print('results.json not found — run main.py first.')
+        print('results.json not found — run scrape.py first.')
         sys.exit(1)
 
     data = json.loads(RESULTS_PATH.read_text(encoding='utf-8'))

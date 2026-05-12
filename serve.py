@@ -1,7 +1,7 @@
 """
 Application tracker server.
-Run: python app.py
-  / — results page (regenerate with python main.py first)
+Run: python serve.py
+  / — results page (regenerate with python scrape.py first)
   /applications — application tracker
 """
 
@@ -46,7 +46,7 @@ def _find_job(job_url: str) -> tuple[JobListing, JobAnalysis] | None:
 def results_page():
     path = Path('results.html')
     if not path.exists():
-        return 'Run python main.py first to generate results.', 404
+        return 'Run python scrape.py first to generate results.', 404
     return send_file(path)
 
 
@@ -109,7 +109,7 @@ def generate_materials(app_id: int):
 
         result = _find_job(row['job_url'])
         if not result:
-            return jsonify({'error': 'Job not found in results.json — re-run main.py?'}), 404
+            return jsonify({'error': 'Job not found in results.json — re-run scrape.py?'}), 404
 
         job, analysis = result
         opt = optimize_resume(job, analysis)

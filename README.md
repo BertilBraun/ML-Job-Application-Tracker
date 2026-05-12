@@ -36,7 +36,7 @@ Opens a browser window for each site. Log in manually, then press Enter. Session
 ### 2. Scrape and analyze
 
 ```bash
-python main.py [max_pages]   # default: 20 pages
+python scrape.py [--pages N] [--sources linkedin stepstone ...]
 ```
 
 Scrapes all enabled sources, scores every listing with Gemini, and writes `results.json` and `results.html`.
@@ -44,7 +44,7 @@ Scrapes all enabled sources, scores every listing with Gemini, and writes `resul
 ### 3. Start the app server
 
 ```bash
-python app.py
+python serve.py
 ```
 
 Opens at `http://localhost:5000`.
@@ -63,8 +63,8 @@ Opens at `http://localhost:5000`.
 ## Project structure
 
 ```text
-main.py              # scrape + analyze entry point
-app.py               # Flask server
+scrape.py            # scrape + analyze entry point
+serve.py             # Flask server
 login.py             # one-time login helper
 applications.html    # tracker SPA (served by Flask)
 PROFILE.md           # candidate profile

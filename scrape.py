@@ -1,6 +1,6 @@
 """
 Job Listing Scraper & Analyzer
-Usage: python main.py [--pages N] [--sources linkedin stepstone ...]
+Usage: python scrape.py [--pages N] [--sources linkedin stepstone ...]
 """
 
 import argparse
@@ -166,7 +166,7 @@ def main() -> None:
     ui_path = Path('results.html')
     ui_path.write_text(build_ui(output_data), encoding='utf-8')
     print(f'UI saved to {ui_path}')
-    print('Start the app server: python app.py')
+    print('Start the app server: python serve.py')
 
 
 if __name__ == '__main__':
