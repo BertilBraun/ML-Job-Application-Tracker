@@ -1,9 +1,9 @@
 """
 Job Listing Scraper & Analyzer
-Usage: python main.py [max_pages]
-  max_pages: number of search result pages to scrape (default: 20)
+Usage: python main.py [--pages N] [--sources linkedin stepstone ...]
 """
 
+import argparse
 import json
 import sys
 import io
@@ -14,7 +14,7 @@ if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-from scrapers import scrape_all_sources
+from scrapers import scrape_all_sources, SOURCE_KEYS
 from analyzer import analyze_job
 from models import JobListing, JobAnalysis
 from build_ui import build as build_ui
@@ -100,12 +100,24 @@ def print_result(job: JobListing, analysis: JobAnalysis, rank: int) -> None:
 
 
 def main() -> None:
-    max_pages = int(sys.argv[1]) if len(sys.argv) > 1 else 20
+    parser = argparse.ArgumentParser(description='Scrape and analyze job listings')
+    parser.add_argument('--pages', type=int, default=20, metavar='N', help='pages per source (default: 20)')
+    parser.add_argument(
+        '--sources',
+        nargs='+',
+        choices=SOURCE_KEYS,
+        metavar='SOURCE',
+        help=f'sources to scrape (default: all enabled); choices: {", ".join(SOURCE_KEYS)}',
+    )
+    args = parser.parse_args()
 
     print(f'{BOLD}Job Listing Scraper & LLM Analyzer{RESET}')
-    print(f'Scraping up to {max_pages} page(s)...')
+    if args.sources:
+        print(f'Sources: {", ".join(args.sources)} | Pages: {args.pages}')
+    else:
+        print(f'Sources: all enabled | Pages: {args.pages}')
 
-    jobs = scrape_all_sources(max_pages=max_pages)
+    jobs = scrape_all_sources(max_pages=args.pages, only=args.sources)
 
     if not jobs:
         print('\nNo jobs found. The site may require login for full listings.')
