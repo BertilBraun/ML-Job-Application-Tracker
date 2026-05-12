@@ -44,9 +44,11 @@ def _save_cache(job_url: str, result: ResumeOptimization) -> None:
 _SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
 You will receive the candidate's full CV and a job listing. Your task:
 
-1. ABOUT SECTION REWRITE
-   Rewrite the About section to foreground the experience and competencies most relevant to this role.
-   Same honest, direct voice, same length. Do not invent anything not in the CV. Just shift emphasis.
+1. ABOUT SECTION — MINIMAL ADJUSTMENTS ONLY
+   Keep the About section as close to the original as possible. Only rephrase individual phrases or
+   reorder emphasis where a specific project or skill is directly relevant to this role. Do not rewrite
+   sentences that don't need changing. The goal is a version the candidate could send without noticing
+   it was touched — not a new draft.
 
 2. KEY BULLETS
    Select 3–5 existing bullet points from the CV's experience/projects sections that are most directly
