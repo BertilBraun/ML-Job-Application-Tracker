@@ -6,8 +6,13 @@ Run: python serve.py
 """
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / 'src'
+sys.path.insert(0, str(SRC))
 
 from flask import Flask, jsonify, render_template, request, send_file
 

@@ -9,6 +9,10 @@ import sys
 import io
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / 'src'
+sys.path.insert(0, str(SRC))
+
 # Force UTF-8 output on Windows to handle emoji in job data
 if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
