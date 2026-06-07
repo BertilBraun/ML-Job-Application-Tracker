@@ -271,6 +271,11 @@ function renderCard(a) {
         </div>
 
         <div class="section">
+          <div class="section-label">Generation guidance</div>
+          <textarea class="notes-area" id="guidance-${a.id}" onblur="saveGuidance(${a.id})" placeholder="Optional steering, e.g. emphasize AlphaZero self-play or adversarial learning…">${esc(a.generation_guidance || '')}</textarea>
+        </div>
+
+        <div class="section">
           <div class="section-label">Cover letter</div>
           <textarea class="cover-area" id="cover-${a.id}" onblur="saveCover(${a.id})" placeholder="Generate materials to populate…">${esc(a.cover_letter || '')}</textarea>
         </div>
@@ -390,11 +395,21 @@ async function saveCover(id) {
   });
 }
 
+async function saveGuidance(id) {
+  const generation_guidance = document.getElementById(`guidance-${id}`).value;
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({generation_guidance}),
+  });
+}
+
 async function generateMaterials(id, regenerate = false) {
   const btn = document.getElementById(`gen-btn-${id}`);
   btn.disabled = true;
   btn.textContent = 'Generating…';
   try {
+    await saveGuidance(id);
     const res = await fetch(`/api/applications/${id}/generate?force_regenerate=${regenerate}`, {method: 'POST'});
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Generation failed'); return; }

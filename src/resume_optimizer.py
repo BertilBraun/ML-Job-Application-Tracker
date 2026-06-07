@@ -23,22 +23,22 @@ def _get_resume() -> str:
     return _resume_text
 
 
-def _cache_path(job_url: str) -> Path:
+def _cache_path(job_url: str, guidance: str = '') -> Path:
     resume = _get_resume()
-    key = hashlib.md5((resume + job_url).encode()).hexdigest()
+    key = hashlib.md5((resume + job_url + guidance.strip()).encode()).hexdigest()
     return CACHE_DIR / f'{key}_resume.json'
 
 
-def _load_cache(job_url: str) -> ResumeOptimization | None:
-    path = _cache_path(job_url)
+def _load_cache(job_url: str, guidance: str = '') -> ResumeOptimization | None:
+    path = _cache_path(job_url, guidance)
     if path.exists():
         return ResumeOptimization.model_validate_json(path.read_text(encoding='utf-8'))
     return None
 
 
-def _save_cache(job_url: str, result: ResumeOptimization) -> None:
+def _save_cache(job_url: str, result: ResumeOptimization, guidance: str = '') -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _cache_path(job_url).write_text(result.model_dump_json(), encoding='utf-8')
+    _cache_path(job_url, guidance).write_text(result.model_dump_json(), encoding='utf-8')
 
 
 _SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
@@ -95,9 +95,13 @@ You will receive the candidate's full CV and a job listing. Your task:
 
 
 def optimize_resume(
-    job: JobListing, analysis: JobAnalysis, force_regenerate: bool = False
+    job: JobListing,
+    analysis: JobAnalysis,
+    force_regenerate: bool = False,
+    guidance: str = '',
 ) -> ResumeOptimization | None:
-    cached = _load_cache(job.url)
+    guidance = guidance.strip()
+    cached = _load_cache(job.url, guidance)
     if cached is not None and not force_regenerate:
         print('      (resume cached)')
         return cached
@@ -120,7 +124,19 @@ Salary: {job.salary or 'Not specified'}
 Candidate strengths for this role: {', '.join(analysis.candidate_fit.strengths)}
 Gaps to be aware of: {', '.join(analysis.candidate_fit.gaps)}
 </analysis_notes>
+"""
 
+    if guidance:
+        content += f"""
+<candidate_guidance>
+{guidance}
+</candidate_guidance>
+
+Use the candidate guidance to choose emphasis for the About section and cover letter. Treat it as steering,
+not as a source of new facts: only mention projects, skills, and claims that are supported by the CV.
+"""
+
+    content += """
 Tailor the resume for this specific role."""
 
     try:
@@ -136,7 +152,7 @@ Tailor the resume for this specific role."""
         if not response.text:
             raise ValueError('Empty response')
         result = ResumeOptimization.model_validate_json(response.text)
-        _save_cache(job.url, result)
+        _save_cache(job.url, result, guidance)
         return result
     except Exception as e:
         print(f'    Resume optimization error: {e}')

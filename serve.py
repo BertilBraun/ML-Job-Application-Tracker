@@ -55,26 +55,26 @@ def _cover_letter_html(row: dict) -> str:
 <head>
   <meta charset="utf-8">
   <style>
-    @page {{ size: A4; margin: 22mm 23mm 24mm; }}
+    @page {{ size: A4; margin: 20mm 23mm 23mm; }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      color: #111827;
+      color: #172033;
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 11pt;
-      line-height: 1.48;
+      font-size: 10.5pt;
+      line-height: 1.42;
     }}
     .sender {{
-      border-bottom: 1px solid #d1d5db;
-      padding-bottom: 12px;
-      margin-bottom: 28px;
+      border-bottom: 0.5pt solid #c8ced8;
+      padding-bottom: 7px;
+      margin-bottom: 22px;
     }}
-    .sender-name {{ font-size: 16pt; font-weight: 700; margin-bottom: 3px; }}
-    .sender-meta {{ color: #4b5563; font-size: 9.5pt; }}
-    .recipient {{ margin-bottom: 22px; color: #374151; }}
-    .date {{ margin-bottom: 24px; color: #374151; }}
-    h1 {{ font-size: 13pt; line-height: 1.35; margin: 0 0 18px; }}
-    p {{ margin: 0 0 12px; }}
+    .sender-name {{ font-size: 11.5pt; font-weight: 700; margin-bottom: 2px; }}
+    .sender-meta {{ color: #485266; font-size: 8.8pt; }}
+    .recipient {{ margin-bottom: 18px; color: #30384a; }}
+    .date {{ margin-bottom: 19px; color: #30384a; }}
+    .subject {{ font-size: 10.8pt; font-weight: 700; margin-bottom: 15px; }}
+    p {{ margin: 0 0 10px; }}
   </style>
 </head>
 <body>
@@ -86,7 +86,7 @@ def _cover_letter_html(row: dict) -> str:
     {location_line}
   </section>
   <section class="date">{generated}</section>
-  <h1>Application for {title}</h1>
+  <section class="subject">Application for {title}</section>
   <main>{letter}</main>
 </body>
 </html>"""
@@ -190,7 +190,13 @@ def generate_materials(app_id: int):
             return jsonify({'error': 'Job not found in results.json — re-run scrape.py?'}), 404
 
         job, analysis = result
-        opt = optimize_resume(job, analysis, force_regenerate=force_regenerate)
+        guidance = row['generation_guidance'] or ''
+        opt = optimize_resume(
+            job,
+            analysis,
+            force_regenerate=force_regenerate,
+            guidance=guidance,
+        )
         if not opt:
             return jsonify({'error': 'Generation failed'}), 500
 
@@ -243,6 +249,7 @@ def update_application(app_id: int):
         'applied_at',
         'about_text',
         'cover_letter',
+        'generation_guidance',
     }
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
