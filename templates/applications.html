@@ -283,7 +283,7 @@ function renderCard(a) {
     </div>
 
     <div class="body-actions">
-      <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id})">
+      <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id}, ${a.about_text ? 'true' : 'false'})">
         ${a.about_text ? 'Regenerate materials' : 'Generate materials'}
       </button>
       ${!a.applied_at ? `<button class="btn btn-secondary btn-sm" onclick="markApplied(${a.id})">Mark as applied</button>` : ''}
@@ -389,12 +389,12 @@ async function saveCover(id) {
   });
 }
 
-async function generateMaterials(id) {
+async function generateMaterials(id, regenerate = false) {
   const btn = document.getElementById(`gen-btn-${id}`);
   btn.disabled = true;
   btn.textContent = 'Generating…';
   try {
-    const res = await fetch(`/api/applications/${id}/generate`, {method: 'POST'});
+    const res = await fetch(`/api/applications/${id}/generate?force_regenerate=${regenerate}`, {method: 'POST'});
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Generation failed'); return; }
     document.getElementById(`about-${id}`).value = data.about;

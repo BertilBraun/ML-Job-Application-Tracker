@@ -11,9 +11,9 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
 
-from db import get_db, init_db
-from models import JobAnalysis, JobListing
-from resume_optimizer import optimize_resume
+from src.db import get_db, init_db
+from src.models import JobAnalysis, JobListing
+from src.resume_optimizer import optimize_resume
 
 app = Flask(__name__)
 RESULTS_PATH = Path('results.json')
@@ -104,6 +104,8 @@ def create_application():
 
 @app.route('/api/applications/<int:app_id>/generate', methods=['POST'])
 def generate_materials(app_id: int):
+    # get the force_regenerate flag from the request query parameters, defaulting to False if not provided
+    force_regenerate = request.args.get('force_regenerate', 'false').lower() == 'true'
     with get_db() as conn:
         row = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
         if not row:
@@ -114,7 +116,7 @@ def generate_materials(app_id: int):
             return jsonify({'error': 'Job not found in results.json — re-run scrape.py?'}), 404
 
         job, analysis = result
-        opt = optimize_resume(job, analysis)
+        opt = optimize_resume(job, analysis, force_regenerate=force_regenerate)
         if not opt:
             return jsonify({'error': 'Generation failed'}), 500
 

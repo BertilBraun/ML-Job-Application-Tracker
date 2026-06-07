@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from models import JobListing, JobAnalysis, ResumeOptimization
+from .models import JobListing, JobAnalysis, ResumeOptimization
 
 load_dotenv()
 
@@ -94,9 +94,11 @@ You will receive the candidate's full CV and a job listing. Your task:
    ---"""
 
 
-def optimize_resume(job: JobListing, analysis: JobAnalysis) -> ResumeOptimization | None:
+def optimize_resume(
+    job: JobListing, analysis: JobAnalysis, force_regenerate: bool = False
+) -> ResumeOptimization | None:
     cached = _load_cache(job.url)
-    if cached is not None:
+    if cached is not None and not force_regenerate:
         print('      (resume cached)')
         return cached
 
