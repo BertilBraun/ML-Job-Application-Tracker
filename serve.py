@@ -6,13 +6,8 @@ Run: python serve.py
 """
 
 import json
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / 'src'
-sys.path.insert(0, str(SRC))
 
 from flask import Flask, jsonify, render_template, request, send_file
 
@@ -78,7 +73,9 @@ def create_application():
         return jsonify({'error': 'job_url required'}), 400
 
     with get_db() as conn:
-        existing = conn.execute('SELECT id FROM applications WHERE job_url = ?', (job_url,)).fetchone()
+        existing = conn.execute(
+            'SELECT id FROM applications WHERE job_url = ?', (job_url,)
+        ).fetchone()
         if existing:
             return jsonify({'id': existing['id'], 'existing': True})
 
@@ -141,7 +138,15 @@ def generate_materials(app_id: int):
 @app.route('/api/applications/<int:app_id>', methods=['PATCH'])
 def update_application(app_id: int):
     data = request.get_json()
-    allowed = {'status', 'notes', 'next_step_date', 'next_step_label', 'applied_at', 'about_text', 'cover_letter'}
+    allowed = {
+        'status',
+        'notes',
+        'next_step_date',
+        'next_step_label',
+        'applied_at',
+        'about_text',
+        'cover_letter',
+    }
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({'error': 'No valid fields'}), 400
