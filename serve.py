@@ -6,10 +6,14 @@ Run: python serve.py
 """
 
 import json
+import re
+from io import BytesIO
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
+from playwright.sync_api import sync_playwright
 
 from src.db import get_db, init_db
 from src.models import JobAnalysis, JobListing
@@ -27,6 +31,76 @@ def _load_results() -> list[dict]:
     if not RESULTS_PATH.exists():
         return []
     return json.loads(RESULTS_PATH.read_text(encoding='utf-8'))
+
+
+def _slug(value: str) -> str:
+    slug = re.sub(r'[^A-Za-z0-9]+', '-', value).strip('-')
+    return slug or 'application'
+
+
+def _paragraphs(text: str) -> str:
+    chunks = [chunk.strip() for chunk in re.split(r'\n\s*\n', text.strip()) if chunk.strip()]
+    return '\n'.join(f'<p>{escape(chunk).replace(chr(10), "<br>")}</p>' for chunk in chunks)
+
+
+def _cover_letter_html(row: dict) -> str:
+    title = escape(row['job_title'] or 'Application')
+    company = escape(row['company'] or '')
+    location_line = f'<div>{company}</div>' if company else ''
+    letter = _paragraphs(row['cover_letter'])
+    today = datetime.now()
+    generated = f'{today:%B} {today.day}, {today.year}'
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {{ size: A4; margin: 22mm 23mm 24mm; }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.48;
+    }}
+    .sender {{
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 12px;
+      margin-bottom: 28px;
+    }}
+    .sender-name {{ font-size: 16pt; font-weight: 700; margin-bottom: 3px; }}
+    .sender-meta {{ color: #4b5563; font-size: 9.5pt; }}
+    .recipient {{ margin-bottom: 22px; color: #374151; }}
+    .date {{ margin-bottom: 24px; color: #374151; }}
+    h1 {{ font-size: 13pt; line-height: 1.35; margin: 0 0 18px; }}
+    p {{ margin: 0 0 12px; }}
+  </style>
+</head>
+<body>
+  <section class="sender">
+    <div class="sender-name">Bertil Braun</div>
+    <div class="sender-meta">hi@bertil-braun.de | +49 1525 3810140 | Karlsruhe, Germany | linkedin.com/in/bertil-braun</div>
+  </section>
+  <section class="recipient">
+    {location_line}
+  </section>
+  <section class="date">{generated}</section>
+  <h1>Application for {title}</h1>
+  <main>{letter}</main>
+</body>
+</html>"""
+
+
+def _render_cover_letter_pdf(row: dict) -> bytes:
+    html = _cover_letter_html(row)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html, wait_until='load')
+        pdf = page.pdf(format='A4', print_background=True)
+        browser.close()
+        return pdf
 
 
 def _find_job(job_url: str) -> tuple[JobListing, JobAnalysis] | None:
@@ -135,6 +209,27 @@ def generate_materials(app_id: int):
                 'key_bullets': opt.key_bullets,
             }
         )
+
+
+@app.route('/api/applications/<int:app_id>/cover-letter.pdf', methods=['GET'])
+def download_cover_letter_pdf(app_id: int):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Not found'}), 404
+        row = dict(row)
+
+    if not (row.get('cover_letter') or '').strip():
+        return jsonify({'error': 'Cover letter has not been generated yet'}), 400
+
+    pdf = _render_cover_letter_pdf(row)
+    filename = f'{_slug(row.get("company") or "")}-{_slug(row.get("job_title") or "")}-cover-letter.pdf'
+    return send_file(
+        BytesIO(pdf),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @app.route('/api/applications/<int:app_id>', methods=['PATCH'])

@@ -271,7 +271,7 @@ function renderCard(a) {
         </div>
 
         <div class="section">
-          <div class="section-label">Cover letter opener</div>
+          <div class="section-label">Cover letter</div>
           <textarea class="cover-area" id="cover-${a.id}" onblur="saveCover(${a.id})" placeholder="Generate materials to populate…">${esc(a.cover_letter || '')}</textarea>
         </div>
 
@@ -286,6 +286,7 @@ function renderCard(a) {
       <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id}, ${a.about_text ? 'true' : 'false'})">
         ${a.about_text ? 'Regenerate materials' : 'Generate materials'}
       </button>
+      <button class="btn btn-secondary btn-sm" onclick="downloadCoverLetter(${a.id})">Download cover letter PDF</button>
       ${!a.applied_at ? `<button class="btn btn-secondary btn-sm" onclick="markApplied(${a.id})">Mark as applied</button>` : ''}
       <button class="btn btn-danger btn-sm" onclick="deleteApp(${a.id})">Delete</button>
     </div>
@@ -410,6 +411,27 @@ async function generateMaterials(id, regenerate = false) {
   } finally {
     btn.disabled = false;
   }
+}
+
+async function downloadCoverLetter(id) {
+  await saveCover(id);
+  const res = await fetch(`/api/applications/${id}/cover-letter.pdf`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || 'Cover letter PDF generation failed');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  link.href = url;
+  link.download = match ? match[1] : 'cover-letter.pdf';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function deleteApp(id) {
