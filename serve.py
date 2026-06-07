@@ -292,6 +292,10 @@ def delete_application(app_id: int):
     return jsonify({'ok': True})
 
 
-if __name__ == '__main__':
+def main() -> None:
     init_db()
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, use_reloader=False)
+
+
+if __name__ == '__main__':
+    main()
