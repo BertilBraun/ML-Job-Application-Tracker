@@ -97,54 +97,14 @@ def _format_letter_date(today: datetime, language: str) -> str:
 
 def _cover_letter_html(row: dict) -> str:
     language = row.get('language') or 'en'
-    title = escape(_clean_job_title(row['job_title'] or 'Application'))
-    company = escape(row['company'] or '')
-    location_line = f'<div>{company}</div>' if company else ''
-    letter = _paragraphs(row['cover_letter'])
-    generated = _format_letter_date(datetime.now(), language)
-    subject_prefix = _SUBJECT_PREFIX.get(language, _SUBJECT_PREFIX['en'])
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <style>
-    @page {{ size: A4; margin: 20mm 23mm 23mm; }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      color: #172033;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 10.5pt;
-      line-height: 1.42;
-    }}
-    .sender {{
-      border-bottom: 0.5pt solid #c8ced8;
-      padding-bottom: 7px;
-      margin-bottom: 22px;
-    }}
-    .sender-name {{ font-size: 11.5pt; font-weight: 700; margin-bottom: 2px; }}
-    .sender-meta {{ color: #485266; font-size: 8.8pt; }}
-    .sender-meta .site {{ white-space: nowrap; }}
-    .sender-meta svg {{ width: 9px; height: 9px; vertical-align: -1px; margin-right: 3px; }}
-    .recipient {{ margin-bottom: 18px; color: #30384a; }}
-    .date {{ margin-bottom: 19px; color: #30384a; text-align: right; }}
-    .subject {{ font-size: 10.8pt; font-weight: 700; margin-bottom: 15px; }}
-    p {{ margin: 0 0 10px; }}
-  </style>
-</head>
-<body>
-  <section class="sender">
-    <div class="sender-name">Bertil Braun</div>
-    <div class="sender-meta">hi@bertil-braun.de | +49 1525 3810140 | Karlsruhe/Stuttgart, Germany | <span class="site"><svg viewBox="0 0 24 24" fill="none" stroke="#485266" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg>bertil-braun.de</span></div>
-  </section>
-  <section class="recipient">
-    {location_line}
-  </section>
-  <section class="date">{generated}</section>
-  <section class="subject">{subject_prefix} {title}</section>
-  <main>{letter}</main>
-</body>
-</html>"""
+    template = app.jinja_env.get_template('cover_letter.html')
+    return template.render(
+        title=_clean_job_title(row['job_title'] or 'Application'),
+        company=row['company'] or '',
+        subject_prefix=_SUBJECT_PREFIX.get(language, _SUBJECT_PREFIX['en']),
+        date_line=_format_letter_date(datetime.now(), language),
+        letter_html=_paragraphs(row['cover_letter']),
+    )
 
 
 def _render_cover_letter_pdf(row: dict) -> bytes:
