@@ -36,6 +36,7 @@ def init_db() -> None:
                 about_text        TEXT,
                 cover_letter      TEXT,
                 generation_guidance TEXT NOT NULL DEFAULT '',
+                language          TEXT    NOT NULL DEFAULT 'en',
                 notes             TEXT    NOT NULL DEFAULT '',
                 next_step_date    TEXT,
                 next_step_label   TEXT
@@ -47,11 +48,8 @@ def init_db() -> None:
                 content          TEXT    NOT NULL
             );
         """)
-        columns = {
-            row['name']
-            for row in conn.execute("PRAGMA table_info(applications)").fetchall()
-        }
+        columns = {row['name'] for row in conn.execute('PRAGMA table_info(applications)').fetchall()}
         if 'generation_guidance' not in columns:
-            conn.execute(
-                "ALTER TABLE applications ADD COLUMN generation_guidance TEXT NOT NULL DEFAULT ''"
-            )
+            conn.execute("ALTER TABLE applications ADD COLUMN generation_guidance TEXT NOT NULL DEFAULT ''")
+        if 'language' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")

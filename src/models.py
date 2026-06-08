@@ -1,6 +1,10 @@
 from __future__ import annotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+
+def _normalize_escaped_newlines(text: str) -> str:
+    return text.replace('\\r\\n', '\n').replace('\\n', '\n').replace('\\r', '\n')
 
 
 class JobListing(BaseModel):
@@ -71,8 +75,13 @@ class ResumeOptimization(BaseModel):
         description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.'
     )
     cover_opener: str = Field(
-        description='Full cover letter in 3 short paragraphs: (1) why this specific role/problem, (2) one specific relevant connection or the breadth/fast-learner argument, (3) honest close acknowledging career stage, ending on wanting to learn from the team. Direct, humble tone — no self-promotion, no achievement enumeration.'
+        description='Complete cover letter: a salutation line, then 3 short body paragraphs (1) why this specific role/problem, (2) one specific relevant connection or the breadth/fast-learner argument, (3) honest close acknowledging career stage and wanting to learn from the team, then a closing formula and the candidate name. Written entirely in the requested language. Direct, humble tone — no self-promotion, no achievement enumeration. Separate the salutation, each paragraph, and the closing with blank lines.'
     )
+
+    @field_validator('about', 'cover_opener')
+    @classmethod
+    def _fix_escaped_newlines(cls, value: str) -> str:
+        return _normalize_escaped_newlines(value)
 
 
 class _RawJobAnalysis(BaseModel):

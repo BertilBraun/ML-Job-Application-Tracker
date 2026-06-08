@@ -50,13 +50,59 @@ def _paragraphs(text: str) -> str:
     return '\n'.join(f'<p>{escape(chunk).replace(chr(10), "<br>")}</p>' for chunk in chunks)
 
 
+SENDER_CITY = 'Karlsruhe/Stuttgart'
+_MONTHS = {
+    'en': [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+    ],
+    'de': [
+        'Januar',
+        'Februar',
+        'März',
+        'April',
+        'Mai',
+        'Juni',
+        'Juli',
+        'August',
+        'September',
+        'Oktober',
+        'November',
+        'Dezember',
+    ],
+}
+_SUBJECT_PREFIX = {'en': 'Application for', 'de': 'Bewerbung als'}
+
+
+def _clean_job_title(title: str) -> str:
+    return re.sub(r'\s*\([^()]*(?:verifiziert|stellenanzeige)[^()]*\)', '', title, flags=re.I).strip()
+
+
+def _format_letter_date(today: datetime, language: str) -> str:
+    month = _MONTHS.get(language, _MONTHS['en'])[today.month - 1]
+    if language == 'de':
+        return f'{SENDER_CITY}, {today.day}. {month} {today.year}'
+    return f'{SENDER_CITY}, {today.day} {month} {today.year}'
+
+
 def _cover_letter_html(row: dict) -> str:
-    title = escape(row['job_title'] or 'Application')
+    language = row.get('language') or 'en'
+    title = escape(_clean_job_title(row['job_title'] or 'Application'))
     company = escape(row['company'] or '')
     location_line = f'<div>{company}</div>' if company else ''
     letter = _paragraphs(row['cover_letter'])
-    today = datetime.now()
-    generated = f'{today:%B} {today.day}, {today.year}'
+    generated = _format_letter_date(datetime.now(), language)
+    subject_prefix = _SUBJECT_PREFIX.get(language, _SUBJECT_PREFIX['en'])
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -78,8 +124,10 @@ def _cover_letter_html(row: dict) -> str:
     }}
     .sender-name {{ font-size: 11.5pt; font-weight: 700; margin-bottom: 2px; }}
     .sender-meta {{ color: #485266; font-size: 8.8pt; }}
+    .sender-meta .site {{ white-space: nowrap; }}
+    .sender-meta svg {{ width: 9px; height: 9px; vertical-align: -1px; margin-right: 3px; }}
     .recipient {{ margin-bottom: 18px; color: #30384a; }}
-    .date {{ margin-bottom: 19px; color: #30384a; }}
+    .date {{ margin-bottom: 19px; color: #30384a; text-align: right; }}
     .subject {{ font-size: 10.8pt; font-weight: 700; margin-bottom: 15px; }}
     p {{ margin: 0 0 10px; }}
   </style>
@@ -87,13 +135,13 @@ def _cover_letter_html(row: dict) -> str:
 <body>
   <section class="sender">
     <div class="sender-name">Bertil Braun</div>
-    <div class="sender-meta">hi@bertil-braun.de | +49 1525 3810140 | Karlsruhe, Germany | linkedin.com/in/bertil-braun</div>
+    <div class="sender-meta">hi@bertil-braun.de | +49 1525 3810140 | Karlsruhe/Stuttgart, Germany | <span class="site"><svg viewBox="0 0 24 24" fill="none" stroke="#485266" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg>bertil-braun.de</span></div>
   </section>
   <section class="recipient">
     {location_line}
   </section>
   <section class="date">{generated}</section>
-  <section class="subject">Application for {title}</section>
+  <section class="subject">{subject_prefix} {title}</section>
   <main>{letter}</main>
 </body>
 </html>"""
@@ -154,9 +202,7 @@ def create_application():
         return jsonify({'error': 'job_url required'}), 400
 
     with get_db() as conn:
-        existing = conn.execute(
-            'SELECT id FROM applications WHERE job_url = ?', (job_url,)
-        ).fetchone()
+        existing = conn.execute('SELECT id FROM applications WHERE job_url = ?', (job_url,)).fetchone()
         if existing:
             return jsonify({'id': existing['id'], 'existing': True})
 
@@ -203,6 +249,7 @@ def generate_materials(app_id: int):
             analysis,
             force_regenerate=force_regenerate,
             guidance=guidance,
+            language=row['language'] or 'en',
         )
         if not opt:
             return jsonify({'error': 'Generation failed'}), 500
@@ -295,6 +342,7 @@ def update_application(app_id: int):
         'about_text',
         'cover_letter',
         'generation_guidance',
+        'language',
     }
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:

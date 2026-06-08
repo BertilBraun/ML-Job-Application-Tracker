@@ -95,6 +95,16 @@
   textarea.about-area { min-height: 120px; }
   textarea.cover-area { min-height: 80px; }
   textarea.notes-area { min-height: 70px; }
+  .lang-label {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 8px;
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #475569;
+  }
+  .lang-label select {
+    background: #0f1117; color: #e2e8f0; border: 1px solid #2d3748;
+    border-radius: 8px; padding: 6px 8px; font-size: 0.85rem; font-family: inherit;
+    text-transform: none; letter-spacing: normal; font-weight: 400;
+  }
 
   .inline-row { display: flex; gap: 8px; align-items: center; }
   .inline-row input[type=date] { width: auto; flex: 1; }
@@ -275,6 +285,12 @@ function renderCard(a) {
         <div class="section">
           <div class="section-label">Generation guidance</div>
           <textarea class="notes-area" id="guidance-${a.id}" onblur="saveGuidance(${a.id})" placeholder="Optional steering, e.g. emphasize AlphaZero self-play or adversarial learning…">${esc(a.generation_guidance || '')}</textarea>
+          <label class="lang-label">Cover letter language
+            <select id="lang-${a.id}" onchange="saveLanguage(${a.id})">
+              <option value="en"${(a.language || 'en') === 'en' ? ' selected' : ''}>English</option>
+              <option value="de"${a.language === 'de' ? ' selected' : ''}>German</option>
+            </select>
+          </label>
         </div>
 
         <div class="section">
@@ -421,12 +437,22 @@ async function saveGuidance(id) {
   });
 }
 
+async function saveLanguage(id) {
+  const language = document.getElementById(`lang-${id}`).value;
+  await fetch(`/api/applications/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({language}),
+  });
+}
+
 async function generateMaterials(id, regenerate = false) {
   const btn = document.getElementById(`gen-btn-${id}`);
   btn.disabled = true;
   btn.textContent = 'Generating…';
   try {
     await saveGuidance(id);
+    await saveLanguage(id);
     const res = await fetch(`/api/applications/${id}/generate?force_regenerate=${regenerate}`, {method: 'POST'});
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Generation failed'); return; }

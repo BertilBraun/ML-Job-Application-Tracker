@@ -23,22 +23,22 @@ def _get_resume() -> str:
     return _resume_text
 
 
-def _cache_path(job_url: str, guidance: str = '') -> Path:
+def _cache_path(job_url: str, guidance: str = '', language: str = 'en') -> Path:
     resume = _get_resume()
-    key = hashlib.md5((resume + job_url + guidance.strip()).encode()).hexdigest()
+    key = hashlib.md5((resume + job_url + guidance.strip() + language).encode()).hexdigest()
     return CACHE_DIR / f'{key}_resume.json'
 
 
-def _load_cache(job_url: str, guidance: str = '') -> ResumeOptimization | None:
-    path = _cache_path(job_url, guidance)
+def _load_cache(job_url: str, guidance: str = '', language: str = 'en') -> ResumeOptimization | None:
+    path = _cache_path(job_url, guidance, language)
     if path.exists():
         return ResumeOptimization.model_validate_json(path.read_text(encoding='utf-8'))
     return None
 
 
-def _save_cache(job_url: str, result: ResumeOptimization, guidance: str = '') -> None:
+def _save_cache(job_url: str, result: ResumeOptimization, guidance: str = '', language: str = 'en') -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _cache_path(job_url, guidance).write_text(result.model_dump_json(), encoding='utf-8')
+    _cache_path(job_url, guidance, language).write_text(result.model_dump_json(), encoding='utf-8')
 
 
 _SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
@@ -62,8 +62,11 @@ You will receive the candidate's full CV and a job listing. Your task:
      or JAX-specific roles. Do not make it the main cover-letter thread unless the listing explicitly
      emphasizes JAX, GPU-resident training, vectorization, or low-level RL systems performance.
 
-3. COVER LETTER (full letter, 3 short paragraphs)
+3. COVER LETTER (complete letter: salutation + 3 short paragraphs + closing)
    Write a complete cover letter following this exact structure:
+   - Salutation: Address the hiring team or company. If no contact name is known, use a polite generic
+     greeting appropriate to the letter's language and the DACH (Germany/Austria/Switzerland) convention
+     — e.g. English "Dear Hiring Team," or German "Sehr geehrte Damen und Herren,". One line, then a blank line.
    - Paragraph 1: Why this specific role or problem space is interesting to the candidate. Be specific
      to the role, product area, or public company information — not generic enthusiasm.
      Ground claims in the job listing or public information. Prefer cautious openers like
@@ -74,6 +77,9 @@ You will receive the candidate's full CV and a job listing. Your task:
      Do not enumerate multiple achievements — pick one thread and follow it.
    - Paragraph 3: Honest close. Acknowledge career stage without apology. End on wanting to learn from
      the team, not on confidence in the candidate's own abilities.
+   - Closing: A blank line, then a closing formula appropriate to the language ("Kind regards," or German
+     "Mit freundlichen Grüßen,"), a blank line, then the candidate's name "Bertil Braun".
+   - Write the ENTIRE letter — salutation, body, and closing — in the language specified in the request.
 
    TONE RULES — follow these strictly:
    - Direct and humble. No self-promotional framing.
@@ -107,14 +113,18 @@ You will receive the candidate's full CV and a job listing. Your task:
    ---"""
 
 
+LANGUAGE_NAMES = {'en': 'English', 'de': 'German'}
+
+
 def optimize_resume(
     job: JobListing,
     analysis: JobAnalysis,
     force_regenerate: bool = False,
     guidance: str = '',
+    language: str = 'en',
 ) -> ResumeOptimization | None:
     guidance = guidance.strip()
-    cached = _load_cache(job.url, guidance)
+    cached = _load_cache(job.url, guidance, language)
     if cached is not None and not force_regenerate:
         print('      (resume cached)')
         return cached
@@ -149,8 +159,11 @@ Use the candidate guidance to choose emphasis for the About section and cover le
 not as a source of new facts: only mention projects, skills, and claims that are supported by the CV.
 """
 
-    content += """
-Tailor the resume for this specific role."""
+    language_name = LANGUAGE_NAMES.get(language, 'English')
+    content += f"""
+Tailor the resume for this specific role.
+Write the cover letter (salutation, body, and closing) entirely in {language_name}.
+The About section stays in English regardless of the cover letter language."""
 
     try:
         response = client.models.generate_content(
@@ -165,7 +178,7 @@ Tailor the resume for this specific role."""
         if not response.text:
             raise ValueError('Empty response')
         result = ResumeOptimization.model_validate_json(response.text)
-        _save_cache(job.url, result, guidance)
+        _save_cache(job.url, result, guidance, language)
         return result
     except Exception as e:
         print(f'    Resume optimization error: {e}')

@@ -7,7 +7,15 @@ import pytest
 
 import serve
 import src.db as db
-from src.models import CandidateFit, JobAnalysis, JobListing, LocationFit, ResumeOptimization, TeamAssessment, WorkImpact
+from src.models import (
+    CandidateFit,
+    JobAnalysis,
+    JobListing,
+    LocationFit,
+    ResumeOptimization,
+    TeamAssessment,
+    WorkImpact,
+)
 
 
 @pytest.fixture()
@@ -58,9 +66,10 @@ def test_generate_materials_passes_saved_guidance_to_optimizer(client, monkeypat
     monkeypatch.setattr(serve, '_find_job', lambda _url: (job, _analysis()))
     captured = {}
 
-    def fake_optimize_resume(job_arg, analysis_arg, force_regenerate=False, guidance=''):
+    def fake_optimize_resume(job_arg, analysis_arg, force_regenerate=False, guidance='', language='en'):
         captured['guidance'] = guidance
         captured['force_regenerate'] = force_regenerate
+        captured['language'] = language
         return ResumeOptimization(
             about='Tailored about',
             key_bullets=['Relevant bullet'],
@@ -75,4 +84,5 @@ def test_generate_materials_passes_saved_guidance_to_optimizer(client, monkeypat
     assert captured == {
         'guidance': 'Emphasize AlphaZero self-play and adversarial learning.',
         'force_regenerate': True,
+        'language': 'en',
     }
