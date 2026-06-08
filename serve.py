@@ -16,6 +16,13 @@ from flask import Flask, jsonify, render_template, request, send_file
 from playwright.sync_api import sync_playwright
 
 from src.db import get_db, init_db
+from src.flowcv_automation import (
+    DOWNLOAD_DIR,
+    FlowCVError,
+    FlowCVLoginRequired,
+    replace_about_and_download_cv,
+    validate_about_text,
+)
 from src.models import JobAnalysis, JobListing
 from src.resume_optimizer import optimize_resume
 
@@ -232,6 +239,44 @@ def download_cover_letter_pdf(app_id: int):
     filename = f'{_slug(row.get("company") or "")}-{_slug(row.get("job_title") or "")}-cover-letter.pdf'
     return send_file(
         BytesIO(pdf),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@app.route('/api/applications/<int:app_id>/cv.pdf', methods=['POST'])
+def download_tailored_cv_pdf(app_id: int):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Not found'}), 404
+        row = dict(row)
+
+    try:
+        about_text = validate_about_text(row.get('about_text') or '')
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    filename = f'{_slug(row.get("company") or "")}-{_slug(row.get("job_title") or "")}-cv.pdf'
+    target_path = DOWNLOAD_DIR / filename
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        pdf_path = replace_about_and_download_cv(about_text, target_path)
+    except FlowCVLoginRequired as exc:
+        return jsonify({'error': str(exc)}), 409
+    except FlowCVError as exc:
+        return jsonify({'error': str(exc)}), 500
+
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
+            (app_id, _now(), 'Downloaded tailored CV from FlowCV'),
+        )
+
+    return send_file(
+        pdf_path,
         mimetype='application/pdf',
         as_attachment=True,
         download_name=filename,

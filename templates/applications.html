@@ -292,6 +292,7 @@ function renderCard(a) {
         ${a.about_text ? 'Regenerate materials' : 'Generate materials'}
       </button>
       <button class="btn btn-secondary btn-sm" onclick="downloadCoverLetter(${a.id})">Download cover letter PDF</button>
+      <button class="btn btn-secondary btn-sm" id="cv-btn-${a.id}" onclick="downloadTailoredCv(${a.id})">Download tailored CV PDF</button>
       ${!a.applied_at ? `<button class="btn btn-secondary btn-sm" onclick="markApplied(${a.id})">Mark as applied</button>` : ''}
       <button class="btn btn-danger btn-sm" onclick="deleteApp(${a.id})">Delete</button>
     </div>
@@ -447,6 +448,36 @@ async function downloadCoverLetter(id) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function downloadTailoredCv(id) {
+  await saveAbout(id);
+  const btn = document.getElementById(`cv-btn-${id}`);
+  btn.disabled = true;
+  btn.textContent = 'Updating FlowCV...';
+  try {
+    const res = await fetch(`/api/applications/${id}/cv.pdf`, {method: 'POST'});
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Tailored CV PDF generation failed');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    link.href = url;
+    link.download = match ? match[1] : 'cv.pdf';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    loadEvents(id);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Download tailored CV PDF';
+  }
 }
 
 async function deleteApp(id) {
