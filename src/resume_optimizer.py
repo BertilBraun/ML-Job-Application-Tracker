@@ -57,7 +57,10 @@ You will receive the candidate's full CV and a job listing. Your task:
 3. COVER LETTER (full letter, 3 short paragraphs)
    Write a complete cover letter following this exact structure:
    - Paragraph 1: Why this specific role or problem space is interesting to the candidate. Be specific
-     to the company and what they're building — not generic enthusiasm.
+     to the role, product area, or public company information — not generic enthusiasm.
+     Ground claims in the job listing or public information. Prefer cautious openers like
+     "What stood out to me...", "From the role description...", "The part of the work that
+     interests me...", or "This seems close to..." when describing the company or role.
    - Paragraph 2: One specific, relevant connection between the candidate's background and this role.
      Either a directly relevant project/experience, or the fast-learner/breadth argument briefly made.
      Do not enumerate multiple achievements — pick one thread and follow it.
@@ -71,6 +74,8 @@ You will receive the candidate's full CV and a job listing. Your task:
    - No superlatives or self-aggrandizing phrases ("the clearest signal I can offer", "uniquely positioned").
    - No filler openers ("I am excited to apply", "I am writing to express my interest").
    - No phrases like "at the intersection of research and production" unless the role explicitly uses that framing.
+   - Do not imply insider knowledge about the company. Avoid phrasing like "Your team is building..."
+     unless the listing or public company page explicitly says that.
    - Sound like a person writing to another person, not a template.
 
    REFERENCE EXAMPLE (good tone — study the register, not the content):
