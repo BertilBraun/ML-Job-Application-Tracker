@@ -1,4 +1,5 @@
 import os
+import re
 from dotenv import load_dotenv
 from models import JobListing
 from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
@@ -28,13 +29,22 @@ _DESC_SELECTORS = [
 ]
 
 
+# StepStone renders the salary badge with only hashed class names, so match it in the card text.
+_SALARY_RE = re.compile(r'\d[\d.,]+\s*(?:[-–]\s*\d[\d.,]+\s*)?(?:€|EUR)\s*/?\s*(?:Jahr|Monat|Stunde|Woche)?', re.I)
+
+
 def _get_salary(card) -> str | None:
     try:
-        el = card.locator('[data-at="salary-range"]')
-        if el.count() > 0:
-            return el.first.inner_text(timeout=1000).strip() or None
+        text = card.inner_text(timeout=1500)
     except Exception:
-        pass
+        return None
+    for line in text.splitlines():
+        match = _SALARY_RE.search(line)
+        if match:
+            salary = match.group().strip()
+            if 'geschätzt' in line.lower():
+                salary += ' (geschätzt)'
+            return salary
     return None
 
 

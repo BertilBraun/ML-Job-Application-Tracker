@@ -16,10 +16,14 @@ BLOCK = [
     "h1:has-text('Let\\'s do a quick')",
 ]
 
-# Extract title, company, location from a card.
-# The title <p> is identified by its aria-hidden duplicate span (LinkedIn renders title text twice).
-# Company and location are the two <p> tags immediately following the title.
-_CARD_TEXTS_JS = """el => {
+# Extract title, company, location, salary from a card.
+# LinkedIn renders the title twice: the visible text in span[aria-hidden="true"] and a
+# screen-reader copy (suffixed e.g. "(Verified job)") in a sibling span. Read the aria-hidden
+# span — the sibling is often empty or contaminated with that suffix.
+# Company and location are the two <p> tags immediately following the title; the salary, when
+# present, is a later <p> badge — read it from the card (job-accurate) rather than the shared
+# detail pane, where a page-wide scan can pick another card's salary or UI noise.
+_CARD_TEXTS_JS = r"""el => {
     const paras = Array.from(el.querySelectorAll('p'))
         .filter(p => !p.closest('button'));
 
@@ -27,14 +31,19 @@ _CARD_TEXTS_JS = """el => {
     if (titleIdx === -1) return [];
 
     const titlePara = paras[titleIdx];
-    const vis = titlePara.querySelector('span:not([aria-hidden="true"])');
-    const title = (vis || titlePara).textContent.trim();
+    const ariaHidden = titlePara.querySelector('span[aria-hidden="true"]');
+    const title = (ariaHidden || titlePara).textContent.trim();
 
     const after = paras.slice(titleIdx + 1);
     const company  = after[0]?.textContent.trim() || '';
     const location = after[1]?.textContent.trim() || '';
 
-    return [title, company, location];
+    // Scan only the metadata paras after location — titles like "... | Upto $90/hr" otherwise false-match.
+    const salaryRe = /(?=.*\d)(?=.*(?:€|\$|£|EUR|USD|GBP|CHF))(?=.*(?:\/?yr|\/?mo|\/?hr|year|month|Jahr|Monat))/i;
+    const salaryPara = after.slice(2).find(p => salaryRe.test(p.textContent));
+    const salary = salaryPara ? salaryPara.textContent.trim() : '';
+
+    return [title, company, location, salary];
 }"""
 
 
@@ -68,8 +77,8 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
             cards = page.locator('[componentkey^="job-card-component-ref-"][tabindex="0"]').all()
             print(f'  Found {len(cards)} cards on page {pg}')
 
-            # (job_id, url, title, company, location)
-            card_meta: list[tuple[str, str, str, str, str]] = []
+            # (job_id, url, title, company, location, salary)
+            card_meta: list[tuple[str, str, str, str, str, str]] = []
             for card in cards:
                 try:
                     componentkey = card.get_attribute('componentkey') or ''
@@ -94,7 +103,8 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
                     title = texts[0]
                     company = texts[1] if len(texts) > 1 else ''
                     location = texts[2] if len(texts) > 2 else ''
-                    card_meta.append((job_id, url, title, company, location))
+                    card_salary = texts[3] if len(texts) > 3 else ''
+                    card_meta.append((job_id, url, title, company, location, card_salary))
                     seen.add(url)
                 except Exception as e:
                     print(f'     !! Card parse error: {e}')
@@ -102,7 +112,7 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
 
             print(f'  Collected {len(card_meta)} new cards to process')
 
-            for job_id, url, title, company, location in card_meta:
+            for job_id, url, title, company, location, card_salary in card_meta:
                 cached = load_detail_cache(url)
                 if cached:
                     print('      (cached)')
@@ -126,7 +136,7 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
                     if not description:
                         print(f'     !! No description for: {title}')
 
-                    salary = _extract_salary(page)
+                    salary = card_salary or None
                     apply_url = url
 
                     save_detail_cache(
@@ -172,13 +182,3 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
         pw.stop()
 
     return jobs
-
-
-def _extract_salary(page) -> str | None:
-    try:
-        el = page.locator('xpath=//p[contains(text(),"$") or contains(text(),"€") or contains(text(),"/yr")]')
-        if el.count() > 0:
-            return el.first.inner_text(timeout=500).strip() or None
-    except Exception:
-        pass
-    return None
