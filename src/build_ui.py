@@ -432,7 +432,7 @@ def build(data: list[dict]) -> str:
     </div>
     <div class="modal-actions">
       <button id="m-gen-btn" class="modal-btn primary" onclick="generateInModal()">Generate materials</button>
-      <a href="/applications" class="modal-btn secondary">Tracker →</a>
+      <a id="m-tracker-link" href="/applications" target="_blank" class="modal-btn secondary" onclick="openTrackerForCurrentApplication(event)">Tracker →</a>
       <button class="modal-btn secondary" onclick="closeModal()">Done</button>
     </div>
   </div>
@@ -505,12 +505,22 @@ function reweight() {{
 
 // ── Application tracking ───────────────────────────────────────────────────────
 
-function _markTracked(jobUrl) {{
+function openTrackerForApplication(appId) {{
+  window.open(`/applications?open=${{appId}}`, '_blank');
+}}
+
+function openTrackerForCurrentApplication(event) {{
+  if (!_currentAppId) return;
+  event.preventDefault();
+  window.open(`/applications?open=${{_currentAppId}}`, '_blank');
+}}
+
+function _markTracked(jobUrl, appId) {{
   document.querySelectorAll('.hdr-apply').forEach(btn => {{
     if (btn.dataset.jobUrl === jobUrl) {{
       btn.textContent = 'Tracked ✓';
       btn.classList.add('hdr-tracked');
-      btn.onclick = () => window.location.href = '/applications';
+      btn.onclick = () => openTrackerForApplication(appId);
     }}
   }});
 }}
@@ -525,6 +535,7 @@ async function startApplication(btn) {{
   document.getElementById('m-materials').style.display = 'none';
   document.getElementById('m-gen-btn').disabled    = false;
   document.getElementById('m-gen-btn').textContent = 'Generate materials';
+  document.getElementById('m-tracker-link').href   = '/applications';
 
   document.getElementById('apply-modal').style.display = 'flex';
 
@@ -543,12 +554,13 @@ async function startApplication(btn) {{
   }});
   const data = await res.json();
   _currentAppId = data.id;
+  document.getElementById('m-tracker-link').href = `/applications?open=${{_currentAppId}}`;
 
   if (data.existing) {{
     document.getElementById('m-status').textContent = 'Already in tracker.';
     document.getElementById('m-gen-btn').textContent = 'Regenerate materials';
   }}
-  _markTracked(_currentJobUrl);
+  _markTracked(_currentJobUrl, _currentAppId);
 }}
 
 async function generateInModal() {{
@@ -586,7 +598,7 @@ function closeModal() {{
 // On load: mark already-tracked jobs
 fetch('/api/applications')
   .then(r => r.json())
-  .then(apps => apps.forEach(a => _markTracked(a.job_url)))
+  .then(apps => apps.forEach(a => _markTracked(a.job_url, a.id)))
   .catch(() => {{}}); // server not running — graceful no-op
 </script>
 </body>

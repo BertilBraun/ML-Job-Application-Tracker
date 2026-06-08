@@ -53,6 +53,14 @@ You will receive the candidate's full CV and a job listing. Your task:
 2. KEY BULLETS
    Select 2–3 existing bullet points from the CV's experience/projects sections that are most directly
    relevant to this role. Quote verbatim or rephrase slightly. These are bullets to lead with.
+   Choose the project by domain fit, not by which project has the biggest metric:
+   - For reinforcement learning in simulated, control, traffic, robotics, or real-world decision systems,
+     prefer the GNN traffic signal control project over the JAX GPU-resident RL project.
+   - For LLM, agent, RAG, orchestration, evaluation, fine-tuning, or observability roles, prefer the
+     agentic LLM systems and Master's thesis / LLM evaluation work.
+   - Use the JAX GPU-resident RL project as supporting evidence for systems optimization, GPU execution,
+     or JAX-specific roles. Do not make it the main cover-letter thread unless the listing explicitly
+     emphasizes JAX, GPU-resident training, vectorization, or low-level RL systems performance.
 
 3. COVER LETTER (full letter, 3 short paragraphs)
    Write a complete cover letter following this exact structure:

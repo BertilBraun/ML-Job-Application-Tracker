@@ -166,6 +166,7 @@ const STATUS_LABELS = {
 
 let allApps = [];
 let activeFilter = '';
+let openAppId = new URLSearchParams(window.location.search).get('open');
 
 async function load() {
   const res = await fetch('/api/applications');
@@ -204,6 +205,7 @@ function renderCards() {
   }
 
   el.innerHTML = visible.map(a => renderCard(a)).join('');
+  openApplicationFromQuery();
 }
 
 function renderCard(a) {
@@ -303,10 +305,24 @@ function renderCard(a) {
 async function toggleCard(id) {
   const body = document.getElementById(`body-${id}`);
   const toggle = document.getElementById(`toggle-${id}`);
-  const open = body.style.display !== 'none';
+  const open = getComputedStyle(body).display !== 'none';
   body.style.display = open ? 'none' : 'block';
   toggle.classList.toggle('open', !open);
   if (!open) loadEvents(id);
+}
+
+function openApplicationFromQuery() {
+  if (!openAppId) return;
+  const body = document.getElementById(`body-${openAppId}`);
+  const toggle = document.getElementById(`toggle-${openAppId}`);
+  const card = document.getElementById(`card-${openAppId}`);
+  if (!body || !toggle || !card) return;
+
+  body.style.display = 'block';
+  toggle.classList.add('open');
+  card.scrollIntoView({block: 'start', behavior: 'smooth'});
+  loadEvents(openAppId);
+  openAppId = null;
 }
 
 async function loadEvents(id) {

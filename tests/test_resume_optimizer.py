@@ -25,3 +25,12 @@ def test_cover_letter_prompt_requires_grounded_public_framing():
     assert 'What stood out to me' in system_prompt
     assert 'Do not imply insider knowledge' in system_prompt
     assert 'Your team is building' in system_prompt
+
+
+def test_optimizer_prompt_prioritizes_specific_project_fit_over_jax_default():
+    system_prompt = resume_optimizer._SYSTEM
+
+    assert 'GNN traffic signal control' in system_prompt
+    assert 'agentic LLM systems' in system_prompt
+    assert 'JAX GPU-resident RL project' in system_prompt
+    assert 'supporting evidence' in system_prompt
