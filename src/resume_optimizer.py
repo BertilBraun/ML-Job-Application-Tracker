@@ -51,7 +51,7 @@ You will receive the candidate's full CV and a job listing. Your task:
    it was touched — not a new draft.
 
 2. KEY BULLETS
-   Select 3–5 existing bullet points from the CV's experience/projects sections that are most directly
+   Select 2–3 existing bullet points from the CV's experience/projects sections that are most directly
    relevant to this role. Quote verbatim or rephrase slightly. These are bullets to lead with.
 
 3. COVER LETTER (full letter, 3 short paragraphs)
@@ -146,7 +146,7 @@ Tailor the resume for this specific role."""
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-pro',
+            model='gemini-3.5-flash',
             contents=content,
             config=types.GenerateContentConfig(
                 system_instruction=_SYSTEM,

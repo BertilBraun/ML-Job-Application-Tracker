@@ -71,7 +71,9 @@ def _load_analysis_cache(url: str, system_prompt: str) -> JobAnalysis | None:
 
 def _save_analysis_cache(url: str, system_prompt: str, analysis: JobAnalysis) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _analysis_cache_path(url, system_prompt).write_text(analysis.model_dump_json(), encoding='utf-8')
+    _analysis_cache_path(url, system_prompt).write_text(
+        analysis.model_dump_json(), encoding='utf-8'
+    )
 
 
 def analyze_job(job: JobListing) -> JobAnalysis | None:
@@ -106,7 +108,7 @@ Date Posted: {job.date_added or 'Not specified'}
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash-lite',
+            model='gemini-3.1-flash-lite',
             contents=content,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
