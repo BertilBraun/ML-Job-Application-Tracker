@@ -1,6 +1,7 @@
 .env
 PROFILE.md
 RESUME.md
+CANDIDATE_EVIDENCE.md
 results.json
 results.html
 cache/

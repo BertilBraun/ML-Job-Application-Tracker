@@ -8,6 +8,7 @@ import pytest
 import serve
 import src.db as db
 from src.models import (
+    ApplicationPlan,
     CandidateFit,
     JobAnalysis,
     JobListing,
@@ -71,6 +72,16 @@ def test_generate_materials_passes_saved_guidance_to_optimizer(client, monkeypat
         captured['force_regenerate'] = force_regenerate
         captured['language'] = language
         return ResumeOptimization(
+            application_plan=ApplicationPlan(
+                role_type='general_ml',
+                posting_type='specific_company',
+                main_evidence_thread='GybeLock',
+                supporting_evidence=['LLM evaluation pipelines'],
+                evidence_to_avoid_or_downplay=[],
+                claims_not_to_make=[],
+                tone_strategy='Factual and concise.',
+                cover_letter_angle='Anchor on applied ML systems.',
+            ),
             about='Tailored about',
             key_bullets=['Relevant bullet'],
             cover_opener='Dear team,\n\nCover letter.',

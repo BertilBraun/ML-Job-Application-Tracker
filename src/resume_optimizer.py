@@ -12,12 +12,14 @@ load_dotenv()
 
 CACHE_DIR = Path(__file__).parent.parent / 'cache'
 RESUME_PATH = Path(__file__).parent.parent / 'RESUME.md'
+EVIDENCE_MAP_PATH = Path(__file__).parent.parent / 'CANDIDATE_EVIDENCE.md'
 
-MODEL_NAME = 'gemini-3.5-flash'
+MODEL_NAME = 'gemini-3.1-pro-preview'
 
 client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 
 _resume_text: str | None = None
+_evidence_map_text: str | None = None
 
 
 def _get_resume() -> str:
@@ -27,10 +29,30 @@ def _get_resume() -> str:
     return _resume_text
 
 
+def _get_evidence_map() -> str:
+    global _evidence_map_text
+    if _evidence_map_text is None:
+        _evidence_map_text = EVIDENCE_MAP_PATH.read_text(encoding='utf-8')
+    return _evidence_map_text
+
+
 _SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
 The candidate applies primarily to roles in Germany, Austria, and Switzerland.
 
 You will receive the candidate's full CV and a job listing.
+
+First create the application_plan field. Use it to decide the strategy before writing the About section, key bullets, and cover letter.
+
+The plan must decide:
+- what kind of role this is,
+- whether the posting is company-specific, anonymous, or aggregator/recruiter-style,
+- which project or experience should be the main evidence thread,
+- which 1-3 supporting pieces of evidence should be used,
+- which projects or claims should be avoided or downplayed,
+- which claims would overstate the candidate's fit,
+- whether the cover letter should be research-oriented, systems-oriented, production-oriented, or performance-oriented.
+
+The plan is part of the JSON output and may be inspected by the user. Keep it concise and useful.
 
 Your task:
 
@@ -78,6 +100,18 @@ Your task:
    - The ideal tone is precise, modest, confident through evidence, contribution-oriented, not salesy, and not bureaucratic.
    - Keep the letter concise: usually 180–260 words unless the language naturally requires slightly more.
    - The letter should sound like a competent technical applicant writing to another professional.
+
+   Refined DACH tone rules:
+   - Professional, factual, technically specific.
+   - Modest but not apologetic.
+   - Confident through evidence, not through self-praise.
+   - Avoid US-style motivational language, exaggerated enthusiasm, and grand claims.
+   - Avoid excessive humility that makes the candidate sound unqualified.
+   - Avoid bureaucratic German nominal style.
+   - Keep the cover letter concise: usually 180-260 words.
+   - Do not frame the candidate as a trainee.
+   - Do not say that the candidate wants to learn from more experienced people.
+   - It is fine to express interest in contributing to a team and continuing to develop technically, but contribution must be the primary framing.
 
    Structure:
    - Salutation:
@@ -167,6 +201,55 @@ Your task:
    Prefer concrete technical phrasing over abstract ML/general business phrasing.
    Avoid stacked abstract nouns such as "decision-making optimization", "convergence stability", "robust deployment pipelines", or "advanced AI initiatives" unless the phrase is unavoidable.
 
+   Avoid abstract stacked technical phrases.
+   Prefer concrete technical wording over generic phrases copied from job descriptions.
+
+   Avoid phrases like:
+   - optimize decision-making in dynamic environments
+   - maintain convergence behavior
+   - advanced AI initiatives
+   - cutting-edge technologies
+   - robust deployment pipelines
+   - resource-efficient architectures
+   - push the boundaries
+   - real-world impact
+   - end-to-end AI solutions
+
+   Instead, use concrete systems, methods, and metrics:
+   - SUMO/TraCI
+   - GATv2
+   - DAgger
+   - PPO
+   - MCTS
+   - batched GPU inference
+   - host-device transfers
+   - 27.6x speedup
+   - 5,248 updates/sec
+   - 96 CPUs / 4 A10 GPUs
+   - 280k games in 12h
+   - OpenTelemetry / Grafana
+   - FastAPI / Modal GPU jobs
+
+   Every cover letter should include, if supported by the CV:
+   - one concrete system or project,
+   - one concrete method or technology,
+   - one concrete metric.
+
+   Do not use the phrase "I like hard problems" in generated About sections.
+   Replace it with more factual wording such as:
+   "My work focuses on technically demanding ML systems..."
+
+   Project-selection principle:
+   Use the project that best matches the role's actual work, not the project with the most impressive metric.
+
+   Examples:
+   - RL/control/simulation/autonomy roles: usually anchor on GNN traffic control. Support with AlphaZero and/or JAX GPU-resident RL if the listing emphasizes scale, self-play, PPO, sample efficiency, or compute efficiency.
+   - LLM infrastructure/fine-tuning/inference roles: usually anchor on LLM evaluation/thesis/CAS and JAX performance work. Support with AlphaZero only for distributed training evidence.
+   - General production ML roles: usually anchor on GybeLock, LLM evaluation pipelines, or agentic LLM systems. Do not lead with RL unless the job asks for RL.
+   - Cybersecurity/anomaly/fraud/behavioral analytics roles: do not claim security-domain experience unless present. Anchor on deployed ML systems, data/model pipelines, evaluation, observability, and production integration. Prefer GybeLock and agentic/observability systems over JAX RL.
+   - Computer vision/video roles: anchor on GybeLock.
+   - Agentic AI/platform/orchestration roles: anchor on Agentic LLM systems and support with LLM evaluation/thesis.
+
 5. FACTUALITY
    Only mention projects, skills, methods, publications, metrics, and claims supported by the CV or candidate guidance.
    Candidate guidance may steer emphasis, but it is not a source of new facts.
@@ -184,6 +267,7 @@ LANGUAGE_NAMES = {
 def _cache_key(
     *,
     resume: str,
+    evidence_map: str,
     job: JobListing,
     analysis: JobAnalysis,
     guidance: str,
@@ -193,11 +277,12 @@ def _cache_key(
 
     key_material = '\n'.join(
         [
-            'resume_optimizer_v3_dach',
+            'resume_optimizer_v4_plan_evidence_dach',
             MODEL_NAME,
             _SYSTEM,
             schema_repr,
             resume,
+            evidence_map,
             job.url or '',
             job.title or '',
             job.company or '',
@@ -225,8 +310,10 @@ def _cache_path(
     language: str = 'en',
 ) -> Path:
     resume = _get_resume()
+    evidence_map = _get_evidence_map()
     key = _cache_key(
         resume=resume,
+        evidence_map=evidence_map,
         job=job,
         analysis=analysis,
         guidance=guidance,
@@ -288,14 +375,21 @@ def optimize_resume(
     )
     if cached is not None and not force_regenerate:
         print('      (resume cached)')
+        print('      Application plan:')
+        print(cached.application_plan.model_dump_json(indent=2))
         return cached
 
     resume = _get_resume()
+    evidence_map = _get_evidence_map()
     language_name = LANGUAGE_NAMES.get(language, 'English')
 
     content = f"""<candidate_cv>
 {resume}
 </candidate_cv>
+
+<candidate_evidence_map>
+{evidence_map}
+</candidate_evidence_map>
 
 <job_listing>
 Title: {job.title}
@@ -318,6 +412,9 @@ Gaps to be aware of:
 Use strengths to choose emphasis.
 Use gaps only to avoid unsupported claims.
 Do not mention gaps, missing credentials, missing seniority, or weaknesses in the cover letter unless explicitly instructed.
+Use the application_plan field to make the strategy explicit before writing.
+The final application text should follow the plan.
+If the job is a stretch fit, handle that by choosing adjacent but honest evidence. Do not apologize for missing requirements.
 """
 
     if guidance:
@@ -357,6 +454,9 @@ Return only valid JSON matching the provided schema.
             raise ValueError('Empty response')
 
         result = ResumeOptimization.model_validate_json(response.text)
+
+        print('      Application plan:')
+        print(result.application_plan.model_dump_json(indent=2))
 
         _save_cache(
             job=job,

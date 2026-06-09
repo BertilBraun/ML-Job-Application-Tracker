@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Literal, Optional
 
 
 def _normalize_escaped_newlines(text: str) -> str:
@@ -67,7 +67,50 @@ class CandidateFit(BaseModel):
     gaps: list[str] = Field(description='Key gaps: skills or experience the role expects but candidate lacks')
 
 
+class ApplicationPlan(BaseModel):
+    role_type: str = Field(
+        description=(
+            'Short classification of the role, e.g. rl_control, llm_infra, '
+            'general_ml, ml_security, computer_vision, agentic_llm, research.'
+        )
+    )
+    posting_type: Literal[
+        'specific_company',
+        'anonymous_recruiter',
+        'aggregator_or_job_board',
+    ] = Field(
+        description='Whether the posting provides direct company context or should be treated cautiously.'
+    )
+    main_evidence_thread: str = Field(
+        description='The main project or experience that should anchor the cover letter.'
+    )
+    supporting_evidence: list[str] = Field(
+        default_factory=list,
+        description='One to three additional projects, methods, or metrics that support the application.',
+    )
+    evidence_to_avoid_or_downplay: list[str] = Field(
+        default_factory=list,
+        description='Projects or claims that are less relevant or could overstate fit for this role.',
+    )
+    claims_not_to_make: list[str] = Field(
+        default_factory=list,
+        description='Claims the application must avoid because they are unsupported or too strong.',
+    )
+    tone_strategy: str = Field(
+        description='Brief description of how the letter should sound for this role.'
+    )
+    cover_letter_angle: str = Field(
+        description='One-sentence strategy for the cover letter.'
+    )
+
+
 class ResumeOptimization(BaseModel):
+    application_plan: ApplicationPlan = Field(
+        description=(
+            'Concise strategy for tailoring this application. Decide the role type, posting context, '
+            'evidence anchor, supporting evidence, unsupported claims to avoid, and tone before writing.'
+        )
+    )
     about: str = Field(
         description='Rewritten About section tailored to this specific job. Same length and style as the original — rephrase emphasis, not personality. Keep it first-person, concrete, honest.'
     )
