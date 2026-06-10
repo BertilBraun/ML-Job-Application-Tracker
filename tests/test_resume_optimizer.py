@@ -65,6 +65,21 @@ def test_resume_cache_key_includes_candidate_evidence_map(tmp_path, monkeypatch)
     assert first != second
 
 
+def test_resume_cache_key_includes_selected_provider_and_model(tmp_path, monkeypatch):
+    monkeypatch.setattr(resume_optimizer, 'CACHE_DIR', tmp_path)
+    monkeypatch.setattr(resume_optimizer, '_get_resume', lambda: 'resume text')
+    monkeypatch.setattr(resume_optimizer, '_get_evidence_map', lambda: 'evidence text')
+    job, analysis = _job(), _analysis()
+
+    monkeypatch.setenv('RESUME_OPTIMIZER_PROVIDER', 'gemini')
+    gemini_path = resume_optimizer._cache_path(job=job, analysis=analysis)
+
+    monkeypatch.setenv('RESUME_OPTIMIZER_PROVIDER', 'openai')
+    openai_path = resume_optimizer._cache_path(job=job, analysis=analysis)
+
+    assert gemini_path != openai_path
+
+
 def test_resume_optimization_requires_application_plan():
     result = ResumeOptimization(
         application_plan=ApplicationPlan(
@@ -86,9 +101,53 @@ def test_resume_optimization_requires_application_plan():
     assert result.application_plan.main_evidence_thread == 'GNN traffic signal control'
 
 
-def test_optimizer_uses_gemini_31_pro_preview_without_temperature():
-    assert resume_optimizer.MODEL_NAME == 'gemini-3.1-pro-preview'
+def test_optimizer_defines_provider_models_without_temperature():
+    assert resume_optimizer.GEMINI_MODEL_NAME == 'gemini-3.1-pro-preview'
+    assert resume_optimizer.OPENAI_MODEL_NAME == 'gpt-5.5'
     assert 'temperature=' not in inspect.getsource(resume_optimizer.optimize_resume)
+
+
+def test_generate_resume_optimization_uses_openai_responses_parse(monkeypatch):
+    result = ResumeOptimization(
+        application_plan=ApplicationPlan(
+            role_type='general_ml',
+            posting_type='specific_company',
+            main_evidence_thread='GybeLock',
+            supporting_evidence=['LLM evaluation pipelines'],
+            evidence_to_avoid_or_downplay=[],
+            claims_not_to_make=[],
+            tone_strategy='Factual and concise.',
+            cover_letter_angle='Anchor on applied ML systems.',
+        ),
+        about='Tailored about',
+        key_bullets=['Relevant bullet'],
+        cover_opener='Dear team,\n\nCover letter.',
+    )
+    captured = {}
+
+    class FakeResponses:
+        def parse(self, **kwargs):
+            captured.update(kwargs)
+
+            class ParsedResponse:
+                output_parsed = result
+
+            return ParsedResponse()
+
+    class FakeOpenAIClient:
+        responses = FakeResponses()
+
+    monkeypatch.setenv('RESUME_OPTIMIZER_PROVIDER', 'openai')
+    monkeypatch.setattr(resume_optimizer, '_get_openai_client', lambda: FakeOpenAIClient())
+
+    assert resume_optimizer._generate_resume_optimization('Prompt content') is result
+    assert captured['model'] == 'gpt-5.5'
+    assert captured['input'] == [
+        {'role': 'system', 'content': resume_optimizer._SYSTEM},
+        {'role': 'user', 'content': 'Prompt content'},
+    ]
+    assert captured['text_format'] is ResumeOptimization
+    assert captured['reasoning'] == {'effort': 'medium'}
 
 
 def test_cover_letter_prompt_requires_grounded_public_framing():
@@ -102,15 +161,16 @@ def test_cover_letter_prompt_requires_grounded_public_framing():
 def test_optimizer_prompt_prioritizes_specific_project_fit_over_jax_default():
     system_prompt = resume_optimizer._SYSTEM
 
-    assert 'GNN traffic signal control' in system_prompt
+    assert 'GNN traffic control' in system_prompt
     assert 'agentic LLM systems' in system_prompt
-    assert 'JAX GPU-resident RL project' in system_prompt
-    assert 'supporting evidence' in system_prompt
+    assert 'JAX GPU-resident RL' in system_prompt
+    assert 'Support with' in system_prompt
 
 
 def test_optimizer_prompt_requires_inspectable_application_plan():
     system_prompt = resume_optimizer._SYSTEM
 
-    assert 'First create the application_plan field' in system_prompt
+    assert 'First create the `application_plan` field' in system_prompt
     assert 'The plan is part of the JSON output' in system_prompt
-    assert 'Do not use the phrase "I like hard problems"' in system_prompt
+    assert 'Do not use the phrase' in system_prompt
+    assert 'I like hard problems' in system_prompt

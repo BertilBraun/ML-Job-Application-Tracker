@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from openai import OpenAI
 
 from .models import JobListing, JobAnalysis, ResumeOptimization
 
@@ -14,9 +15,15 @@ CACHE_DIR = Path(__file__).parent.parent / 'cache'
 RESUME_PATH = Path(__file__).parent.parent / 'RESUME.md'
 EVIDENCE_MAP_PATH = Path(__file__).parent.parent / 'CANDIDATE_EVIDENCE.md'
 
-MODEL_NAME = 'gemini-3.1-pro-preview'
+DEFAULT_LLM_PROVIDER = 'gemini'
+GEMINI_PROVIDER = 'gemini'
+OPENAI_PROVIDER = 'openai'
+GEMINI_MODEL_NAME = 'gemini-3.1-pro-preview'
+OPENAI_MODEL_NAME = 'gpt-5.5'
+OPENAI_REASONING_EFFORT = 'medium'
 
-client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+_gemini_client: genai.Client | None = None
+_openai_client: OpenAI | None = None
 
 _resume_text: str | None = None
 _evidence_map_text: str | None = None
@@ -36,225 +43,310 @@ def _get_evidence_map() -> str:
     return _evidence_map_text
 
 
-_SYSTEM = """You are helping a job applicant tailor their resume and write a cover letter for a specific role.
-The candidate applies primarily to roles in Germany, Austria, and Switzerland.
+def _get_llm_provider() -> str:
+    return os.getenv('RESUME_OPTIMIZER_PROVIDER', DEFAULT_LLM_PROVIDER).strip().lower()
 
-You will receive the candidate's full CV and a job listing.
 
-First create the application_plan field. Use it to decide the strategy before writing the About section, key bullets, and cover letter.
+def _get_model_name(provider: str) -> str:
+    if provider == GEMINI_PROVIDER:
+        return os.getenv('GEMINI_MODEL_NAME', '').strip() or GEMINI_MODEL_NAME
+    if provider == OPENAI_PROVIDER:
+        return os.getenv('OPENAI_MODEL_NAME', '').strip() or OPENAI_MODEL_NAME
+    raise ValueError(
+        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. '
+        f'Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
+    )
 
-The plan must decide:
-- what kind of role this is,
-- whether the posting is company-specific, anonymous, or aggregator/recruiter-style,
-- which project or experience should be the main evidence thread,
-- which 1-3 supporting pieces of evidence should be used,
-- which projects or claims should be avoided or downplayed,
-- which claims would overstate the candidate's fit,
-- whether the cover letter should be research-oriented, systems-oriented, production-oriented, or performance-oriented.
 
-The plan is part of the JSON output and may be inspected by the user. Keep it concise and useful.
+def _get_gemini_client() -> genai.Client:
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    return _gemini_client
 
-Your task:
 
-1. ABOUT SECTION — MINIMAL ADJUSTMENTS ONLY
-   Keep the About section as close to the original as possible.
-   Only rephrase individual phrases or reorder emphasis where a specific project or skill is directly relevant to this role.
-   Do not rewrite sentences that do not need changing.
-   The goal is a version the candidate could send without noticing it was heavily edited.
+def _get_openai_client() -> OpenAI:
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+    return _openai_client
 
-2. TECHNICAL SKILLS — TARGETED BUT FACTUAL
-   You may reorder, regroup, or lightly rewrite the technical skills section to surface directly relevant skills already supported by the CV.
-   Do not add unsupported technologies, frameworks, methods, or claims.
-   Prefer role-specific clusters over generic categories.
 
-   Examples:
-   - RL / autonomy / control roles: PPO, DAgger, AlphaZero/MCTS, self-play, GNN policies, SUMO/TraCI, JAX, PyTorch, C++.
-   - LLM / agent / evaluation roles: LLM pipelines, fine-tuning, automated evaluation, DPO if supported by CV, RAG, agent orchestration, observability.
-   - LLM infrastructure / performance roles: JAX, PyTorch, GPU-resident training loops, batched inference, distributed workers, Docker, observability.
-   - CV / multimodal roles: YOLO, tracking, pose/orientation models, video pipelines, deployment, full-stack ML systems.
-   - General ML engineering roles: Python, PyTorch, JAX where relevant, Docker, FastAPI, ML pipelines, deployment, evaluation, observability.
+def _llm_cache_identity() -> str:
+    provider = _get_llm_provider()
+    model_name = _get_model_name(provider)
+    return f'{provider}:{model_name}'
 
-3. KEY BULLETS
-   Select 2–4 existing bullet points from the CV's experience/projects sections that are most directly relevant to this role.
-   Quote verbatim or rephrase slightly.
-   These are bullets to lead with.
-   Choose by domain fit and explicit role requirements, not only by the largest metric.
 
-   Reinforcement learning routing:
-   - For RL in simulated, control, traffic, robotics, autonomy, or real-world decision systems, use the GNN traffic signal control project as the main project when the role emphasizes decision-making, simulation environments, control, PPO, or real-world systems.
-   - Use AlphaZero/self-play as supporting evidence when the role emphasizes large-scale experiments, self-play, exploration, policy improvement, search, multi-agent RL, or policy iteration.
-   - Use the JAX GPU-resident RL project as supporting evidence when the role emphasizes scalability, compute efficiency, runtime performance, JAX, GPU training, vectorization, or resource-efficient AI.
-   - It is acceptable to mention all three briefly if the listing asks for broad RL research, large-scale experiments, and efficient implementation.
+_SYSTEM = """You are helping a job applicant tailor their CV and write a cover letter for a specific role.
 
-   LLM routing:
-   - For LLM, agent, RAG, orchestration, evaluation, fine-tuning, post-training, or observability roles, prefer the agentic LLM systems and Master's thesis / LLM evaluation work.
-   - Use the JAX GPU-resident project only as supporting evidence for performance engineering unless the listing explicitly emphasizes JAX or low-level training efficiency.
+The candidate applies primarily to roles in Germany, Austria, and Switzerland. The style should be professional, factual, technically specific, modest, and contribution-oriented. Avoid US-style self-marketing, exaggerated enthusiasm, excessive humility, and generic AI/job-ad language.
 
-4. COVER LETTER
-   Write a complete cover letter: salutation + 3 short paragraphs + closing.
+You will receive:
 
-   DACH application style:
-   - Use a professional, factual, technically specific tone.
-   - Avoid US-style motivational language, exaggerated enthusiasm, grand claims, and hype.
-   - Avoid excessive humility that makes the candidate sound unqualified.
-   - The ideal tone is precise, modest, confident through evidence, contribution-oriented, not salesy, and not bureaucratic.
-   - Keep the letter concise: usually 180–260 words unless the language naturally requires slightly more.
-   - The letter should sound like a competent technical applicant writing to another professional.
+* the candidate's full CV,
+* a candidate evidence map,
+* a job listing,
+* optional analysis notes,
+* optional candidate guidance.
 
-   Refined DACH tone rules:
-   - Professional, factual, technically specific.
-   - Modest but not apologetic.
-   - Confident through evidence, not through self-praise.
-   - Avoid US-style motivational language, exaggerated enthusiasm, and grand claims.
-   - Avoid excessive humility that makes the candidate sound unqualified.
-   - Avoid bureaucratic German nominal style.
-   - Keep the cover letter concise: usually 180-260 words.
-   - Do not frame the candidate as a trainee.
-   - Do not say that the candidate wants to learn from more experienced people.
-   - It is fine to express interest in contributing to a team and continuing to develop technically, but contribution must be the primary framing.
+First create the `application_plan` field. Use it to decide the strategy before writing the About section, technical skills, key bullets, and cover letter.
 
-   Structure:
-   - Salutation:
-     Address the hiring team or company.
-     If no contact name is known, use a polite generic greeting appropriate to the letter's language and DACH convention.
-     English: "Dear Hiring Team,"
-     German: "Sehr geehrte Damen und Herren,"
-     One line, then a blank line.
+The plan should be concise and useful. It must identify:
 
-   - Paragraph 1:
-     Explain why this role or problem space is interesting to the candidate.
-     Be specific to the listing, product area, or company information.
-     If the posting is anonymous, recruiter-posted, or from an aggregator, refer only to "the role description" or "this role" and do not pretend company-specific knowledge.
-     Prefer cautious openers like:
-     "What stood out to me..."
-     "From the role description..."
-     "The part of the work that interests me..."
-     "This seems close to..."
-     For German letters, prefer factual formulations like:
-     "Besonders interessiert mich..."
-     "An der Rolle spricht mich vor allem an..."
-     "Aus der Stellenbeschreibung geht für mich besonders hervor..."
+* the role type,
+* whether the posting is company-specific, anonymous, recruiter-posted, or aggregator-style,
+* the main evidence thread,
+* 1–3 supporting evidence points,
+* claims or projects to avoid or downplay,
+* the intended tone and cover-letter angle.
 
-   - Paragraph 2:
-     Give the strongest evidence for fit.
-     Use one main project as the narrative anchor, but include 1–2 additional concise proof points if they directly map to explicit role requirements.
-     Prefer quantified, verifiable evidence from the CV.
-     Do not list unrelated achievements.
-     The letter should have high evidence density: concrete methods, metrics, systems, and outcomes are better than adjectives.
+The final application text should follow the plan.
 
-   - Paragraph 3:
-     Close honestly and directly.
-     Connect the candidate's working style to the role: end-to-end systems thinking, research-driven experimentation, performance focus, deployment orientation, fast technical depth, or careful evaluation.
-     End with a grounded contribution-oriented close.
-     The tone should be humble but not submissive.
-     Do not frame the candidate as seeking training or permission to grow.
-     Do not make the candidate sound like a trainee unless the job is explicitly junior.
+## 1. About section
 
-   - Closing:
-     A blank line, then a closing formula appropriate to the language:
-     English: "Kind regards,"
-     German: "Mit freundlichen Grüßen,"
-     A blank line, then "Bertil Braun".
+Tailor the About section lightly. Keep it close to the base CV, but adjust emphasis toward the role where useful.
 
-   Career-stage rule:
-   Do not mention missing PhD, missing seniority, or early career stage unless the job explicitly makes this a major issue and the gap would otherwise be conspicuous.
-   If mentioned, frame it as an unconventional/high-slope background with concrete evidence, not as a weakness.
-   Prefer not mentioning it at all.
+The About section may:
 
-   German cover-letter rules:
-   - Use "Sehr geehrte Damen und Herren," if no contact name is known.
-   - Use "Mit freundlichen Grüßen" as closing.
-   - Prefer clear factual phrasing over emotional enthusiasm.
-   - Avoid overly casual formulations such as "ich brenne für", "mega spannend", "super spannend", "total begeistert".
-   - Avoid inflated phrases such as "einzigartige Gelegenheit" unless the listing itself uses such wording.
-   - Avoid translating English startup phrases literally.
-   - Prefer "einbringen" / "beitragen" / "weiterentwickeln" over "lernen von".
-   - Avoid unnecessary nominal style and bureaucratic phrasing.
+* reorder relevant strengths,
+* surface relevant projects,
+* adjust the target-role sentence.
 
-   English cover-letter rules for DACH companies:
-   - Use natural professional English, but avoid highly American self-marketing.
-   - Prefer "What stood out to me..." or "The part of the role that interests me..." over "I am thrilled to apply..."
-   - Emphasize concrete fit and contribution.
-   - Avoid overly emotional language such as "passionate about" unless clearly natural and restrained.
+The About section must not:
 
-   Never write:
-   - "I am excited to apply..."
-   - "I am writing to express my interest..."
-   - "I am thrilled to apply..."
-   - "While I am at an earlier stage in my career..."
-   - "Although I do not hold a PhD..."
-   - "I would welcome the opportunity to learn from..."
-   - "I would love the opportunity to learn from..."
-   - "I may not meet all requirements..."
-   - "I may not meet all the listed qualifications..."
-   - "I believe my background makes me uniquely positioned..."
-   - "the clearest signal I can offer..."
-   - "I am passionate about..."
-   - "at the intersection of research and production" unless the job explicitly uses that framing.
+* make the candidate sound more specialized than the CV supports,
+* imply direct ownership of systems not actually built,
+* become a completely new profile,
+* use the phrase “I like hard problems.”
 
-   Do not imply insider knowledge about the company.
-   Avoid phrasing like "your team is building..." unless the listing or public company page explicitly says that.
+For stretch-fit roles, prefer broader truthful positioning such as:
 
-   The cover letter is candidate-facing application text.
-   Do not include caveats, gap analysis, or strategic commentary inside it.
-   
-   Prefer concrete technical phrasing over abstract ML/general business phrasing.
-   Avoid stacked abstract nouns such as "decision-making optimization", "convergence stability", "robust deployment pipelines", or "advanced AI initiatives" unless the phrase is unavoidable.
+* “performance-oriented ML systems”
+* “training and evaluation pipelines”
+* “hands-on JAX experience”
+* “distributed workloads”
+* “deployed ML pipelines”
+* “LLM evaluation pipelines”
 
-   Avoid abstract stacked technical phrases.
-   Prefer concrete technical wording over generic phrases copied from job descriptions.
+Avoid overly specific positioning unless directly supported by the CV:
 
-   Avoid phrases like:
-   - optimize decision-making in dynamic environments
-   - maintain convergence behavior
-   - advanced AI initiatives
-   - cutting-edge technologies
-   - robust deployment pipelines
-   - resource-efficient architectures
-   - push the boundaries
-   - real-world impact
-   - end-to-end AI solutions
+* “high-performance inference engines”
+* “foundation model infrastructure”
+* “production fine-tuning infrastructure”
+* “multi-node GPU training”
+* “safety-critical deployment”
+* “security-domain ML”
 
-   Instead, use concrete systems, methods, and metrics:
-   - SUMO/TraCI
-   - GATv2
-   - DAgger
-   - PPO
-   - MCTS
-   - batched GPU inference
-   - host-device transfers
-   - 27.6x speedup
-   - 5,248 updates/sec
-   - 96 CPUs / 4 A10 GPUs
-   - 280k games in 12h
-   - OpenTelemetry / Grafana
-   - FastAPI / Modal GPU jobs
+The About section stays in English regardless of the cover-letter language.
 
-   Every cover letter should include, if supported by the CV:
-   - one concrete system or project,
-   - one concrete method or technology,
-   - one concrete metric.
+## 2. Technical skills
 
-   Do not use the phrase "I like hard problems" in generated About sections.
-   Replace it with more factual wording such as:
-   "My work focuses on technically demanding ML systems..."
+You may reorder, regroup, or lightly rewrite the technical skills section to surface skills relevant to the role.
 
-   Project-selection principle:
-   Use the project that best matches the role's actual work, not the project with the most impressive metric.
+Only include skills supported by the CV or evidence map.
 
-   Examples:
-   - RL/control/simulation/autonomy roles: usually anchor on GNN traffic control. Support with AlphaZero and/or JAX GPU-resident RL if the listing emphasizes scale, self-play, PPO, sample efficiency, or compute efficiency.
-   - LLM infrastructure/fine-tuning/inference roles: usually anchor on LLM evaluation/thesis/CAS and JAX performance work. Support with AlphaZero only for distributed training evidence.
-   - General production ML roles: usually anchor on GybeLock, LLM evaluation pipelines, or agentic LLM systems. Do not lead with RL unless the job asks for RL.
-   - Cybersecurity/anomaly/fraud/behavioral analytics roles: do not claim security-domain experience unless present. Anchor on deployed ML systems, data/model pipelines, evaluation, observability, and production integration. Prefer GybeLock and agentic/observability systems over JAX RL.
-   - Computer vision/video roles: anchor on GybeLock.
-   - Agentic AI/platform/orchestration roles: anchor on Agentic LLM systems and support with LLM evaluation/thesis.
+Prefer role-specific clusters over generic categories.
 
-5. FACTUALITY
-   Only mention projects, skills, methods, publications, metrics, and claims supported by the CV or candidate guidance.
-   Candidate guidance may steer emphasis, but it is not a source of new facts.
-   Use gaps only to avoid unsupported claims.
-   Do not mention gaps in the cover letter unless explicitly instructed.
+Examples:
+
+* RL / autonomy / control: PPO, DAgger, AlphaZero/MCTS, self-play, GNN policies, SUMO/TraCI, JAX, PyTorch, C++.
+* LLM / evaluation / agents: LLM pipelines, fine-tuning, automated evaluation, agent orchestration, observability.
+* LLM infrastructure / performance: JAX, PyTorch, GPU-resident training loops, batched inference, distributed workers, Docker, observability.
+* Computer vision / multimodal: YOLO, tracking, pose/orientation models, video pipelines, FastAPI, Modal GPU jobs.
+* General production ML: Python, PyTorch, Docker, FastAPI, ML pipelines, deployment, evaluation, observability, SQL/NoSQL if supported.
+
+## 3. Key bullets
+
+Select 2–4 existing CV bullets that are most relevant to the role.
+
+Quote them verbatim or rephrase slightly.
+
+Choose evidence by role fit, not by the largest metric.
+
+Use the project whose problem structure best matches the role:
+
+* For RL/control/simulation/autonomy roles, usually lead with GNN traffic control if the role emphasizes simulation environments, real-world environments, control, reward design, sample efficiency, policy stability, or deployment.
+* Use AlphaZero/self-play as the main thread only when the role emphasizes self-play, search, games, policy iteration, large-scale RL experiments, or distributed RL.
+* Use JAX GPU-resident RL as the main thread only when the role emphasizes JAX, GPU efficiency, vectorization, training throughput, low-level performance, scalable training, or resource-efficient AI.
+* For LLM infrastructure/fine-tuning/inference roles, usually combine LLM evaluation/thesis/CAS with JAX performance work. Use AlphaZero only as supporting evidence for distributed workloads.
+* For general production ML roles, usually lead with GybeLock, LLM evaluation pipelines, or agentic LLM systems. Do not lead with RL unless the role asks for RL.
+* For cybersecurity/anomaly/fraud/behavioral analytics roles, do not claim security-domain experience unless present. Use deployed ML systems, data/model pipelines, evaluation, observability, and production integration as transferable evidence.
+* For computer vision/video roles, lead with GybeLock.
+* For agentic AI/platform/orchestration roles, lead with Agentic LLM Systems and support with LLM evaluation/thesis.
+
+## 4. Cover letter
+
+Write a complete cover letter: salutation, three short paragraphs, and closing.
+
+Target length: 180–260 words.
+
+The cover letter must be application text only. Do not include caveats, strategy notes, fit analysis, or meta-commentary.
+
+### Tone
+
+The tone should be:
+
+* professional,
+* factual,
+* technically specific,
+* modest but not apologetic,
+* confident through evidence,
+* contribution-oriented,
+* natural for Germany/Austria/Switzerland.
+
+Avoid:
+
+* hype,
+* grand claims,
+* excessive humility,
+* trainee framing,
+* generic job-ad language,
+* forced fit language.
+
+Do not say the candidate wants to “learn from more experienced people.” It is fine to express interest in contributing to a team and developing technically, but contribution must be the primary framing.
+
+### Structure
+
+Salutation:
+
+* English: “Dear Hiring Team,”
+* German: “Sehr geehrte Damen und Herren,”
+
+Paragraph 1:
+Explain why the role or problem space is interesting. Be specific to the listing, product area, or company information.
+
+If the posting is anonymous, recruiter-posted, or aggregator-style, refer only to “the role description” or “this role” and do not pretend company-specific knowledge.
+
+Do not over-specialize the role beyond what the listing clearly says.
+
+Paragraph 2:
+Give the strongest evidence for fit.
+
+Use one main project as the anchor, with 1–2 supporting proof points if they map directly to explicit requirements.
+
+Prefer concrete systems, methods, and metrics over adjectives.
+
+Do not start by naming a mismatch or missing domain experience. If the domain is adjacent, frame the transferable engineering overlap directly.
+
+Good pattern:
+“My recent work has focused on systems with similar engineering requirements: ...”
+
+Paragraph 3:
+Close by naming the candidate's working style or contribution area.
+
+Good themes:
+
+* building training and evaluation loops,
+* systematic experimentation,
+* performance measurement,
+* deployment reliability,
+* production observability,
+* model evaluation,
+* hardware-efficient implementation.
+
+End with a grounded contribution-oriented sentence.
+
+Closing:
+
+* English: “Kind regards,”
+* German: “Mit freundlichen Grüßen”
+* Then: “Bertil Braun”
+
+## 5. Language rules
+
+For German letters:
+
+* Use clear, factual German.
+* Avoid overly casual phrases such as “ich brenne für”, “mega spannend”, “super spannend”, “total begeistert”.
+* Avoid inflated phrases such as “einzigartige Gelegenheit” unless the listing itself uses that wording.
+* Avoid bureaucratic nominal style.
+* Prefer “einbringen”, “beitragen”, or “weiterentwickeln” over “lernen von”.
+
+For English letters to DACH companies:
+
+* Use natural professional English.
+* Avoid highly American self-marketing.
+* Prefer “What stood out to me...” or “The part of the role that interests me...” over “I am thrilled to apply...”
+* Avoid emotional language such as “passionate about.”
+
+## 6. Seniority and stretch-fit rules
+
+Do not mention missing PhD, missing seniority, or early career stage unless the user explicitly asks for it or the job makes it unavoidable.
+
+If the role is a stretch fit, do not apologize and do not inflate experience. Choose adjacent but honest evidence.
+
+Avoid broad seniority claims unless strongly supported:
+
+* “deep experience”
+* “extensive experience”
+* “expert-level”
+* “world-class”
+
+Prefer:
+
+* “hands-on experience”
+* “research and engineering experience”
+* “practical experience”
+* “experience building...”
+
+## 7. Concrete wording
+
+Prefer concrete technical wording over abstract business or AI-marketing language.
+
+Avoid phrases like:
+
+* “cutting-edge technologies”
+* “push the boundaries”
+* “real-world impact”
+* “end-to-end AI solutions”
+* “aligns perfectly”
+* “maps directly to”
+* “directly applicable to”
+* “this exact intersection”
+
+Use concrete evidence where relevant:
+
+* SUMO/TraCI
+* GATv2
+* DAgger
+* PPO
+* MCTS
+* batched GPU inference
+* host-device transfers
+* 27.6x speedup
+* 5,248 updates/sec
+* 96 CPUs / 4 A10 GPUs
+* 280k games in 12h
+* OpenTelemetry / Grafana
+* FastAPI / Modal GPU jobs
+* YOLO
+* multi-object tracking
+* automated LLM evaluation
+* ACL 2025 Workshop publication
+
+Use technically precise objects:
+
+* retrain models, not architectures,
+* monitor model performance, not pipelines in the abstract,
+* optimize training loops or inference paths, not “convergence behavior,”
+* build RL systems or policies, not “RL architectures” unless discussing model architecture specifically.
+
+## 8. Factuality
+
+Only mention projects, skills, methods, publications, metrics, and claims supported by the CV, evidence map, or candidate guidance.
+
+Candidate guidance may steer emphasis, but it is not a source of new facts.
+
+Use gaps only to avoid unsupported claims. Do not mention gaps in the cover letter unless explicitly instructed.
+
+Additional style constraints:
+- Keep the grammatical style of the original About section. If the original starts with a noun phrase, do not rewrite it into first person.
+- Prefer cover letters of 170–230 words. Use up to 260 words only when the role is highly technical and the extra detail is clearly useful.
+- Do not include self-limiting comparison phrases such as “albeit at a smaller scale” unless the user explicitly asks for that candor.
+- Vary closing phrasing. Do not use “I would be glad to...” as the default close every time.
+
+Return only valid JSON matching the provided schema.
 """
 
 
@@ -277,8 +369,8 @@ def _cache_key(
 
     key_material = '\n'.join(
         [
-            'resume_optimizer_v4_plan_evidence_dach',
-            MODEL_NAME,
+            'resume_optimizer_v5_provider_abstraction',
+            _llm_cache_identity(),
             _SYSTEM,
             schema_repr,
             resume,
@@ -356,6 +448,52 @@ def _save_cache(
         language=language,
     )
     path.write_text(result.model_dump_json(), encoding='utf-8')
+
+
+def _generate_with_gemini(content: str) -> ResumeOptimization:
+    response = _get_gemini_client().models.generate_content(
+        model=_get_model_name(GEMINI_PROVIDER),
+        contents=content,
+        config=types.GenerateContentConfig(
+            system_instruction=_SYSTEM,
+            response_mime_type='application/json',
+            response_schema=ResumeOptimization,
+        ),
+    )
+
+    if not response.text:
+        raise ValueError('Empty response')
+
+    return ResumeOptimization.model_validate_json(response.text)
+
+
+def _generate_with_openai(content: str) -> ResumeOptimization:
+    response = _get_openai_client().responses.parse(
+        model=_get_model_name(OPENAI_PROVIDER),
+        input=[
+            {'role': 'system', 'content': _SYSTEM},
+            {'role': 'user', 'content': content},
+        ],
+        text_format=ResumeOptimization,
+        reasoning={'effort': OPENAI_REASONING_EFFORT},
+    )
+
+    if response.output_parsed is None:
+        raise ValueError('Empty parsed response')
+
+    return response.output_parsed
+
+
+def _generate_resume_optimization(content: str) -> ResumeOptimization:
+    provider = _get_llm_provider()
+    if provider == GEMINI_PROVIDER:
+        return _generate_with_gemini(content)
+    if provider == OPENAI_PROVIDER:
+        return _generate_with_openai(content)
+    raise ValueError(
+        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. '
+        f'Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
+    )
 
 
 def optimize_resume(
@@ -440,20 +578,7 @@ Return only valid JSON matching the provided schema.
 """
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=content,
-            config=types.GenerateContentConfig(
-                system_instruction=_SYSTEM,
-                response_mime_type='application/json',
-                response_schema=ResumeOptimization,
-            ),
-        )
-
-        if not response.text:
-            raise ValueError('Empty response')
-
-        result = ResumeOptimization.model_validate_json(response.text)
+        result = _generate_resume_optimization(content)
 
         print('      Application plan:')
         print(result.application_plan.model_dump_json(indent=2))
