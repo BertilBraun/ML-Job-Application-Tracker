@@ -46,6 +46,7 @@
   .app-card.status-offer        { border-left-color: #22c55e; }
   .app-card.status-rejected     { border-left-color: #ef4444; }
   .app-card.status-withdrawn    { border-left-color: #6b7280; }
+  .app-card.possible-duplicate  { background: #2b2413; border-left-color: #f59e0b; }
 
   .app-header {
     display: flex; align-items: center; gap: 12px;
@@ -54,6 +55,11 @@
   .app-title-block { flex: 1; min-width: 0; }
   .app-title { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-company { color: #64748b; font-size: 0.82rem; margin-top: 2px; }
+  .possible-duplicate .app-company { color: #c9a94f; }
+  .duplicate-warning {
+    color: #facc15; font-size: 0.76rem; margin-top: 5px;
+    white-space: normal; line-height: 1.35;
+  }
 
   .status-badge {
     font-size: 0.7rem; font-weight: 700; padding: 3px 9px;
@@ -220,6 +226,11 @@ function renderCards() {
 
 function renderCard(a) {
   const applied = a.applied_at ? new Date(a.applied_at).toLocaleDateString() : null;
+  const duplicateMatches = a.status === 'draft' ? (a.possible_duplicates || []) : [];
+  const hasPossibleDuplicate = duplicateMatches.length > 0;
+  const duplicateText = hasPossibleDuplicate
+    ? `Possible duplicate: ${duplicateMatches.map(d => `${d.job_title} at ${d.company} (${STATUS_LABELS[d.status] || d.status})`).join('; ')}`
+    : '';
   const metaParts = [];
   if (a.location) metaParts.push(a.location);
   if (applied)    metaParts.push(`Applied ${applied}`);
@@ -230,11 +241,12 @@ function renderCard(a) {
   if (a.listing_url) links.push(`<a href="${a.listing_url}" target="_blank" class="header-link">View listing</a>`);
   if (a.apply_url)   links.push(`<a href="${a.apply_url}"  target="_blank" class="header-link">Apply →</a>`);
 
-  return `<div class="app-card status-${a.status}" id="card-${a.id}">
+  return `<div class="app-card status-${a.status}${hasPossibleDuplicate ? ' possible-duplicate' : ''}" id="card-${a.id}">
   <div class="app-header" onclick="toggleCard(${a.id})">
     <div class="app-title-block">
       <div class="app-title">${esc(a.job_title)}</div>
       <div class="app-company">${esc(a.company)}</div>
+      ${hasPossibleDuplicate ? `<div class="duplicate-warning">${esc(duplicateText)}</div>` : ''}
     </div>
     <div class="header-links" onclick="event.stopPropagation()">${links.join('')}</div>
     <span class="status-badge status-${a.status}">${STATUS_LABELS[a.status]}</span>

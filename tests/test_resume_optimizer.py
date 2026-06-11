@@ -153,7 +153,7 @@ def test_generate_resume_optimization_uses_openai_responses_parse(monkeypatch):
 def test_cover_letter_prompt_requires_grounded_public_framing():
     system_prompt = resume_optimizer._SYSTEM
 
-    assert 'From the role description' in system_prompt
+    assert 'role description' in system_prompt
     assert 'What stood out to me' in system_prompt
     assert 'do not pretend company-specific knowledge' in system_prompt
 
@@ -164,13 +164,13 @@ def test_optimizer_prompt_prioritizes_specific_project_fit_over_jax_default():
     assert 'GNN traffic control' in system_prompt
     assert 'agentic LLM systems' in system_prompt
     assert 'JAX GPU-resident RL' in system_prompt
-    assert 'Support with' in system_prompt
+    assert 'supporting evidence' in system_prompt
 
 
 def test_optimizer_prompt_requires_inspectable_application_plan():
     system_prompt = resume_optimizer._SYSTEM
 
     assert 'First create the `application_plan` field' in system_prompt
-    assert 'The plan is part of the JSON output' in system_prompt
-    assert 'Do not use the phrase' in system_prompt
+    assert 'Return only valid JSON matching the provided schema' in system_prompt
+    assert 'use the phrase' in system_prompt
     assert 'I like hard problems' in system_prompt

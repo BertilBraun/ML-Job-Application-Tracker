@@ -7,6 +7,8 @@ Run: python serve.py
 
 import json
 import re
+import unicodedata
+from difflib import SequenceMatcher
 from io import BytesIO
 from datetime import datetime, timezone
 from html import escape
@@ -88,6 +90,101 @@ def _clean_job_title(title: str) -> str:
     return re.sub(r'\s*\([^()]*(?:verifiziert|stellenanzeige)[^()]*\)', '', title, flags=re.I).strip()
 
 
+def _normalize_match_text(value: str) -> str:
+    normalized = unicodedata.normalize('NFKD', value or '').encode('ascii', 'ignore').decode('ascii')
+    normalized = normalized.lower()
+    normalized = re.sub(r'[^a-z0-9]+', ' ', normalized)
+    return re.sub(r'\s+', ' ', normalized).strip()
+
+
+def _normalize_company_for_match(company: str) -> str:
+    tokens = _normalize_match_text(company).split()
+    suffixes = {
+        'ag',
+        'gmbh',
+        'kg',
+        'se',
+        'ltd',
+        'limited',
+        'inc',
+        'corp',
+        'corporation',
+        'llc',
+        'co',
+        'group',
+    }
+    meaningful = [token for token in tokens if token not in suffixes]
+    return ' '.join(meaningful or tokens)
+
+
+def _normalize_title_for_match(title: str) -> str:
+    title = re.sub(r'\([^)]*\)', ' ', title or '')
+    title = re.sub(r'\b[fmwd]{1,4}\b', ' ', title, flags=re.I)
+    title = re.sub(r'\b(m|w|d|f|x)\s*/\s*(m|w|d|f|x)(?:\s*/\s*(m|w|d|f|x))*\b', ' ', title, flags=re.I)
+    return _normalize_match_text(title)
+
+
+def _titles_are_similar(first: str, second: str) -> bool:
+    first_norm = _normalize_title_for_match(first)
+    second_norm = _normalize_title_for_match(second)
+    if not first_norm or not second_norm:
+        return False
+    if first_norm == second_norm:
+        return True
+
+    first_tokens = set(first_norm.split())
+    second_tokens = set(second_norm.split())
+    if len(first_tokens) >= 2 and first_tokens.issubset(second_tokens):
+        return True
+    if len(second_tokens) >= 2 and second_tokens.issubset(first_tokens):
+        return True
+
+    return SequenceMatcher(None, first_norm, second_norm).ratio() >= 0.82
+
+
+def _possible_duplicates_for(row: dict, rows: list[dict]) -> list[dict]:
+    if row.get('status') != 'draft':
+        return []
+
+    company = _normalize_company_for_match(row.get('company') or '')
+    if not company:
+        return []
+
+    matches = []
+    for other in rows:
+        if other['id'] == row['id']:
+            continue
+        if other.get('status') in {'rejected', 'withdrawn'}:
+            continue
+        if _normalize_company_for_match(other.get('company') or '') != company:
+            continue
+        if not _titles_are_similar(row.get('job_title') or '', other.get('job_title') or ''):
+            continue
+
+        matches.append(
+            {
+                'id': other['id'],
+                'job_title': other.get('job_title') or '',
+                'company': other.get('company') or '',
+                'status': other.get('status') or '',
+                'applied_at': other.get('applied_at'),
+                'reasons': ['same company', 'similar title'],
+            }
+        )
+
+    return matches
+
+
+def _with_possible_duplicates(rows: list[dict]) -> list[dict]:
+    return [
+        {
+            **row,
+            'possible_duplicates': _possible_duplicates_for(row, rows),
+        }
+        for row in rows
+    ]
+
+
 def _format_letter_date(today: datetime, language: str) -> str:
     month = _MONTHS.get(language, _MONTHS['en'])[today.month - 1]
     if language == 'de':
@@ -151,7 +248,7 @@ def applications_page():
 def list_applications():
     with get_db() as conn:
         rows = conn.execute('SELECT * FROM applications ORDER BY created_at DESC').fetchall()
-        return jsonify([dict(r) for r in rows])
+        return jsonify(_with_possible_duplicates([dict(r) for r in rows]))
 
 
 @app.route('/api/applications', methods=['POST'])
