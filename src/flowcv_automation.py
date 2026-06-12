@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 FLOWCV_URL = 'https://app.flowcv.com/resume/content'
 USER_DATA_DIR = Path('user_data') / 'flowcv'
 DOWNLOAD_DIR = Path('downloads') / 'cv'
-ORIGINAL_ABOUT_LENGTH = 728
+ORIGINAL_ABOUT_LENGTH = 758
 
 # Headless by default; set FLOWCV_HEADLESS=false for the one-off visible re-login when the session expires.
 HEADLESS = os.environ.get('FLOWCV_HEADLESS', 'true').lower() != 'false'
@@ -32,13 +32,15 @@ def validate_about_text(text: str) -> str:
         raise ValueError('Tailored About has not been generated yet')
     if len(clean) < 300:
         raise ValueError('Tailored About is too short for the CV About section')
-    if len(clean) > 900:
+    if len(clean) > 1200:
         raise ValueError('Tailored About is too long for the CV About section')
 
     lower = int(ORIGINAL_ABOUT_LENGTH * 0.75)
     upper = int(ORIGINAL_ABOUT_LENGTH * 1.35)
     if not (lower <= len(clean) <= upper):
-        raise ValueError(f'Tailored About length must stay close to the original ({lower}-{upper} characters)')
+        raise ValueError(
+            f'Tailored About length must stay close to the original ({lower}-{upper} characters)'
+        )
     if clean.startswith(('#', '-', '*')):
         raise ValueError('Tailored About must be prose, not markdown or bullets')
     return clean
@@ -85,12 +87,16 @@ def _wait_for_flowcv_content_page(page: Page) -> None:
     try:
         page.wait_for_url('**/resume/content**', timeout=60000)
     except PlaywrightTimeoutError as exc:
-        raise FlowCVLoginRequired('FlowCV session is not logged in. Log in once in the opened browser window.') from exc
+        raise FlowCVLoginRequired(
+            'FlowCV session is not logged in. Log in once in the opened browser window.'
+        ) from exc
 
     try:
         _about_nav_item(page).wait_for(timeout=60000)
     except PlaywrightTimeoutError as exc:
-        raise FlowCVLoginRequired('FlowCV content page did not become available after login.') from exc
+        raise FlowCVLoginRequired(
+            'FlowCV content page did not become available after login.'
+        ) from exc
 
 
 def _about_nav_item(page: Page) -> Locator:
