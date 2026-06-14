@@ -37,12 +37,15 @@ def _insert_application(
     cover_letter: str | None,
     generation_guidance: str = '',
     about_text: str | None = None,
+    technical_skills: str | None = None,
+    project_order: str | None = None,
 ) -> int:
     with sqlite3.connect(db.DB_PATH) as conn:
         conn.execute(
             """INSERT INTO applications
-               (job_url, job_title, company, created_at, cover_letter, generation_guidance, about_text)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (job_url, job_title, company, created_at, cover_letter, generation_guidance,
+                about_text, technical_skills, project_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 'https://example.com/job',
                 'ML Engineer',
@@ -51,6 +54,8 @@ def _insert_application(
                 cover_letter,
                 generation_guidance,
                 about_text,
+                technical_skills,
+                project_order,
             ),
         )
         return conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -120,18 +125,31 @@ def test_tailored_cv_pdf_errors_when_about_missing_or_invalid(client, about_text
 
 
 def test_tailored_cv_pdf_downloads_flowcv_result(client, monkeypatch, tmp_path):
-    app_id = _insert_application('Dear team', about_text=PLAUSIBLE_ABOUT)
+    app_id = _insert_application(
+        'Dear team',
+        about_text=PLAUSIBLE_ABOUT,
+        technical_skills='["Programming: Python, C++", "ML: PyTorch, JAX"]',
+        project_order='["GybeLock - Multi-Object Tracking & Video Intelligence System"]',
+    )
     pdf_path = tmp_path / 'generated-cv.pdf'
     pdf_path.write_bytes(b'%PDF-1.4\n')
     captured = {}
 
-    def fake_replace_about_and_download_cv(about_text: str, target_path: Path) -> Path:
+    def fake_replace_cv_content_and_download(
+        *,
+        about_text: str,
+        technical_skills: list[str] | None,
+        project_order: list[str] | None,
+        target_path: Path,
+    ) -> Path:
         captured['about_text'] = about_text
+        captured['technical_skills'] = technical_skills
+        captured['project_order'] = project_order
         captured['target_path'] = target_path
         target_path.write_bytes(pdf_path.read_bytes())
         return target_path
 
-    monkeypatch.setattr(serve, 'replace_about_and_download_cv', fake_replace_about_and_download_cv)
+    monkeypatch.setattr(serve, 'replace_cv_content_and_download', fake_replace_cv_content_and_download)
 
     response = client.post(f'/api/applications/{app_id}/cv.pdf')
 
@@ -139,6 +157,32 @@ def test_tailored_cv_pdf_downloads_flowcv_result(client, monkeypatch, tmp_path):
     assert response.mimetype == 'application/pdf'
     assert response.data.startswith(b'%PDF')
     assert captured['about_text'] == PLAUSIBLE_ABOUT
+    assert captured['technical_skills'] == ['Programming: Python, C++', 'ML: PyTorch, JAX']
+    assert captured['project_order'] == ['GybeLock - Multi-Object Tracking & Video Intelligence System']
     assert captured['target_path'].name == 'Example-GmbH-ML-Engineer-cv.pdf'
     assert 'attachment' in response.headers['Content-Disposition']
     assert 'Example-GmbH-ML-Engineer-cv.pdf' in response.headers['Content-Disposition']
+
+
+def test_tailored_cv_pdf_falls_back_when_cv_fields_empty(client, monkeypatch, tmp_path):
+    app_id = _insert_application('Dear team', about_text=PLAUSIBLE_ABOUT)
+    captured = {}
+
+    def fake_replace_cv_content_and_download(
+        *,
+        about_text: str,
+        technical_skills: list[str] | None,
+        project_order: list[str] | None,
+        target_path: Path,
+    ) -> Path:
+        captured['technical_skills'] = technical_skills
+        captured['project_order'] = project_order
+        target_path.write_bytes(b'%PDF-1.4\n')
+        return target_path
+
+    monkeypatch.setattr(serve, 'replace_cv_content_and_download', fake_replace_cv_content_and_download)
+
+    response = client.post(f'/api/applications/{app_id}/cv.pdf')
+
+    assert response.status_code == 200
+    assert captured == {'technical_skills': None, 'project_order': None}

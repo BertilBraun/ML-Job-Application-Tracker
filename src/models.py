@@ -117,6 +117,19 @@ class ResumeOptimization(BaseModel):
     key_bullets: list[str] = Field(
         description='3-5 existing bullet points from the CV (quoted verbatim or slightly rephrased) that are most relevant to lead with for this role. Pick from experience/projects sections.'
     )
+    technical_skills: list[str] = Field(
+        description=(
+            'Exact compact grouped technical skill lines for the CV. Usually 3-4 lines, '
+            '2-5 allowed. Each line should be a factual grouped line such as '
+            '"Programming: Python, C++, SQL".'
+        )
+    )
+    project_order: list[str] = Field(
+        description=(
+            'Canonical existing project names from the resume/FlowCV page in the desired CV order. '
+            'Do not invent project names.'
+        )
+    )
     cover_opener: str = Field(
         description='Complete cover letter: a salutation line, then 3 short body paragraphs (1) why this specific role/problem, (2) one specific relevant connection or the breadth/fast-learner argument, (3) honest close acknowledging career stage and wanting to learn from the team, then a closing formula and the candidate name. Written entirely in the requested language. Direct, humble tone — no self-promotion, no achievement enumeration. Separate the salutation, each paragraph, and the closing with blank lines.'
     )
@@ -125,6 +138,34 @@ class ResumeOptimization(BaseModel):
     @classmethod
     def _fix_escaped_newlines(cls, value: str) -> str:
         return _normalize_escaped_newlines(value)
+
+    @field_validator('technical_skills')
+    @classmethod
+    def _validate_technical_skills(cls, value: list[str]) -> list[str]:
+        lines = [line.strip() for line in value if line and line.strip()]
+        if not (2 <= len(lines) <= 5):
+            raise ValueError('technical_skills must contain 2-5 non-empty grouped skill lines')
+        for line in lines:
+            if '|' in line:
+                raise ValueError('technical_skills must not contain markdown tables')
+            if len(line) > 180:
+                raise ValueError('technical_skills lines must stay compact')
+        return lines
+
+    @field_validator('project_order')
+    @classmethod
+    def _validate_project_order(cls, value: list[str]) -> list[str]:
+        names = [name.strip() for name in value if name and name.strip()]
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for name in names:
+            key = name.casefold()
+            if key not in seen:
+                seen.add(key)
+                deduped.append(name)
+        if not deduped:
+            raise ValueError('project_order must contain at least one existing project name')
+        return deduped
 
 
 class _RawJobAnalysis(BaseModel):

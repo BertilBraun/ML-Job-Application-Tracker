@@ -22,7 +22,7 @@ from src.flowcv_automation import (
     DOWNLOAD_DIR,
     FlowCVError,
     FlowCVLoginRequired,
-    replace_about_and_download_cv,
+    replace_cv_content_and_download,
     validate_about_text,
 )
 from src.models import JobAnalysis, JobListing
@@ -50,6 +50,22 @@ def _slug(value: str) -> str:
 def _paragraphs(text: str) -> str:
     chunks = [chunk.strip() for chunk in re.split(r'\n\s*\n', text.strip()) if chunk.strip()]
     return '\n'.join(f'<p>{escape(chunk).replace(chr(10), "<br>")}</p>' for chunk in chunks)
+
+
+def _json_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item).strip() for item in parsed if str(item).strip()]
+
+
+def _dump_json_list(value: list[str]) -> str:
+    return json.dumps(value, ensure_ascii=False)
 
 
 SENDER_CITY = 'Karlsruhe/Stuttgart'
@@ -312,16 +328,28 @@ def generate_materials(app_id: int):
             return jsonify({'error': 'Generation failed'}), 500
 
         conn.execute(
-            'UPDATE applications SET about_text = ?, cover_letter = ? WHERE id = ?',
-            (opt.about, opt.cover_opener, app_id),
+            (
+                'UPDATE applications '
+                'SET about_text = ?, technical_skills = ?, project_order = ?, cover_letter = ? '
+                'WHERE id = ?'
+            ),
+            (
+                opt.about,
+                _dump_json_list(opt.technical_skills),
+                _dump_json_list(opt.project_order),
+                opt.cover_opener,
+                app_id,
+            ),
         )
         conn.execute(
             'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
-            (app_id, _now(), 'Generated tailored About and cover letter'),
+            (app_id, _now(), 'Generated tailored CV content and cover letter'),
         )
         return jsonify(
             {
                 'about': opt.about,
+                'technical_skills': opt.technical_skills,
+                'project_order': opt.project_order,
                 'cover_letter': opt.cover_opener,
                 'key_bullets': opt.key_bullets,
             }
@@ -365,9 +393,16 @@ def download_tailored_cv_pdf(app_id: int):
     filename = f'{_slug(row.get("company") or "")}-{_slug(row.get("job_title") or "")}-cv.pdf'
     target_path = DOWNLOAD_DIR / filename
     target_path.parent.mkdir(parents=True, exist_ok=True)
+    technical_skills = _json_list(row.get('technical_skills'))
+    project_order = _json_list(row.get('project_order'))
 
     try:
-        pdf_path = replace_about_and_download_cv(about_text, target_path)
+        pdf_path = replace_cv_content_and_download(
+            about_text=about_text,
+            technical_skills=technical_skills or None,
+            project_order=project_order or None,
+            target_path=target_path,
+        )
     except FlowCVLoginRequired as exc:
         return jsonify({'error': str(exc)}), 409
     except FlowCVError as exc:
@@ -400,10 +435,15 @@ def update_application(app_id: int):
         'cover_letter',
         'generation_guidance',
         'language',
+        'technical_skills',
+        'project_order',
     }
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({'error': 'No valid fields'}), 400
+    for list_field in ('technical_skills', 'project_order'):
+        if isinstance(fields.get(list_field), list):
+            fields[list_field] = _dump_json_list([str(item) for item in fields[list_field]])
 
     set_clause = ', '.join(f'{k} = ?' for k in fields)
     with get_db() as conn:

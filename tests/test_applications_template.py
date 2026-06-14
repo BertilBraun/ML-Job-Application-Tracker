@@ -25,3 +25,14 @@ def test_applications_template_highlights_possible_duplicate_drafts():
     assert 'possible-duplicate' in template
     assert 'Possible duplicate' in template
     assert "a.status === 'draft'" in template
+
+
+def test_applications_template_shows_tailored_cv_metadata():
+    template = Path('templates/applications.html').read_text(encoding='utf-8')
+
+    assert 'Tailored technical skills' in template
+    assert 'Project order' in template
+    assert 'parseCvList(a.technical_skills)' in template
+    assert 'parseCvList(a.project_order)' in template
+    assert 'updateMetadataList(`skills-${id}`, data.technical_skills' in template
+    assert 'updateMetadataList(`projects-${id}`, data.project_order' in template

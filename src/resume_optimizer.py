@@ -90,7 +90,7 @@ You will receive:
 * optional analysis notes,
 * optional candidate guidance.
 
-First create the `application_plan` field. Use it to decide the strategy before writing the About section, technical skills, key bullets, and cover letter.
+First create the `application_plan` field. Use it to decide the strategy before writing the About section, technical skills, project order, key bullets, and cover letter.
 
 The plan should be concise and useful. It must identify:
 
@@ -142,11 +142,19 @@ The About section stays in English regardless of the cover-letter language.
 
 ## 2. Technical skills
 
-You may reorder, regroup, or lightly rewrite the technical skills section to surface skills relevant to the role.
+Return `technical_skills` as the exact compact grouped skill lines that should appear in the CV.
 
 Only include skills supported by the CV or evidence map.
 
-Prefer role-specific clusters over generic categories.
+Requirements:
+
+* use 2-5 non-empty lines, usually 3-4,
+* keep each line compact,
+* use grouped lines such as "Programming: Python, C++, SQL",
+* prefer role-specific clusters over generic categories,
+* avoid keyword stuffing,
+* do not invent skills, tools, frameworks, methods, publications, metrics, or experience,
+* do not include markdown tables.
 
 Examples:
 
@@ -156,7 +164,33 @@ Examples:
 * Computer vision / multimodal: YOLO, tracking, pose/orientation models, video pipelines, FastAPI, Modal GPU jobs.
 * General production ML: Python, PyTorch, Docker, FastAPI, ML pipelines, deployment, evaluation, observability, SQL/NoSQL if supported.
 
-## 3. Key bullets
+## 3. Project order
+
+Return `project_order` as canonical existing project names only, using names from the CV or FlowCV project section. Do not invent, rename, merge, or summarize project names.
+
+The order should put the most relevant 2-3 projects first and leave less relevant projects later. Unknown or unsupported project names are not allowed.
+
+Role guidance:
+
+* CV/video/autonomy roles: lead with GybeLock, then JAX GPU-resident RL or AlphaZero depending on performance vs model-training emphasis.
+* Agentic/LLM platform roles: lead with Agentic LLM Systems, then CAS/KIT LLM evaluation or Temporal-Light depending on the role.
+* NLP/LLM evaluation roles: lead with CAS/KIT LLM evaluation/publication, then Agentic LLM Systems.
+* RL/control roles: lead with GNN-Based Traffic Signal Control or AlphaZero depending on whether the role emphasizes control/simulation or self-play/search.
+* Performance/infrastructure roles: lead with GPU-Resident Reinforcement Learning with JAX, then AlphaZero/distributed self-play or agent systems depending on the job.
+
+Canonical FlowCV project names include:
+
+* AlphaZero-Style Chess: General Deep Reinforcement Learning for Board Games
+* GybeLock - Multi-Object Tracking & Video Intelligence System
+* GPU-Resident Reinforcement Learning with JAX
+* Agentic LLM Systems: Durable Coding Runtime & Multi-Agent Orchestration
+* CaRL - Reinforcement Learning Racing Agent
+* Advanced Speech Translation Pipeline
+* Symp - Making connecting in real life effortless.
+* Pyro - Collaborative Music Voting App
+* GNN-Based Traffic Signal Control
+
+## 4. Key bullets
 
 Select 2–4 existing CV bullets that are most relevant to the role.
 
@@ -175,7 +209,7 @@ Use the project whose problem structure best matches the role:
 * For computer vision/video roles, lead with GybeLock.
 * For agentic AI/platform/orchestration roles, lead with Agentic LLM Systems and support with LLM evaluation/thesis.
 
-## 4. Cover letter
+## 5. Cover letter
 
 Write a complete cover letter: salutation, three short paragraphs, and closing.
 
@@ -253,7 +287,7 @@ Closing:
 * German: “Mit freundlichen Grüßen”
 * Then: “Bertil Braun”
 
-## 5. Language rules
+## 6. Language rules
 
 For German letters:
 
@@ -270,7 +304,7 @@ For English letters to DACH companies:
 * Prefer “What stood out to me...” or “The part of the role that interests me...” over “I am thrilled to apply...”
 * Avoid emotional language such as “passionate about.”
 
-## 6. Seniority and stretch-fit rules
+## 7. Seniority and stretch-fit rules
 
 Do not mention missing PhD, missing seniority, or early career stage unless the user explicitly asks for it or the job makes it unavoidable.
 
@@ -290,7 +324,7 @@ Prefer:
 * “practical experience”
 * “experience building...”
 
-## 7. Concrete wording
+## 8. Concrete wording
 
 Prefer concrete technical wording over abstract business or AI-marketing language.
 
@@ -332,7 +366,7 @@ Use technically precise objects:
 * optimize training loops or inference paths, not “convergence behavior,”
 * build RL systems or policies, not “RL architectures” unless discussing model architecture specifically.
 
-## 8. Factuality
+## 9. Factuality
 
 Only mention projects, skills, methods, publications, metrics, and claims supported by the CV, evidence map, or candidate guidance.
 
@@ -369,7 +403,7 @@ def _cache_key(
 
     key_material = '\n'.join(
         [
-            'resume_optimizer_v5_provider_abstraction',
+            'resume_optimizer_v6_cv_skills_project_order',
             _llm_cache_identity(),
             _SYSTEM,
             schema_repr,
@@ -561,7 +595,7 @@ If the job is a stretch fit, handle that by choosing adjacent but honest evidenc
 {guidance}
 </candidate_guidance>
 
-Use the candidate guidance to choose emphasis for the About section, skills section, key bullets, and cover letter.
+Use the candidate guidance to choose emphasis for the About section, skills section, project order, key bullets, and cover letter.
 Treat it as steering, not as a source of new facts.
 Only mention projects, skills, metrics, and claims that are supported by the CV.
 """

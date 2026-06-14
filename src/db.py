@@ -34,6 +34,8 @@ def init_db() -> None:
                 created_at        TEXT    NOT NULL,
                 applied_at        TEXT,
                 about_text        TEXT,
+                technical_skills  TEXT,
+                project_order     TEXT,
                 cover_letter      TEXT,
                 generation_guidance TEXT NOT NULL DEFAULT '',
                 language          TEXT    NOT NULL DEFAULT 'en',
@@ -53,3 +55,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE applications ADD COLUMN generation_guidance TEXT NOT NULL DEFAULT ''")
         if 'language' not in columns:
             conn.execute("ALTER TABLE applications ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")
+        if 'technical_skills' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN technical_skills TEXT")
+        if 'project_order' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN project_order TEXT")

@@ -160,6 +160,13 @@
 
   .bullets-list { list-style: none; font-size: 0.82rem; color: #94a3b8; line-height: 1.8; }
   .bullets-list li::before { content: "• "; color: #3b82f6; }
+  .metadata-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .metadata-list li {
+    font-size: 0.8rem; color: #94a3b8; line-height: 1.45;
+    background: #0f1117; border: 1px solid #2d3748; border-radius: 7px;
+    padding: 6px 8px;
+  }
+  .metadata-empty { color: #475569; }
 </style>
 </head>
 <body>
@@ -226,6 +233,8 @@ function renderCards() {
 
 function renderCard(a) {
   const applied = a.applied_at ? new Date(a.applied_at).toLocaleDateString() : null;
+  const technicalSkills = parseCvList(a.technical_skills);
+  const projectOrder = parseCvList(a.project_order);
   const duplicateMatches = a.status === 'draft' ? (a.possible_duplicates || []) : [];
   const hasPossibleDuplicate = duplicateMatches.length > 0;
   const duplicateText = hasPossibleDuplicate
@@ -308,6 +317,20 @@ function renderCard(a) {
         <div class="section">
           <div class="section-label">Cover letter</div>
           <textarea class="cover-area" id="cover-${a.id}" onblur="saveCover(${a.id})" placeholder="Generate materials to populate…">${esc(a.cover_letter || '')}</textarea>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Tailored technical skills</div>
+          <ul class="metadata-list" id="skills-${a.id}">
+            ${renderMetadataList(technicalSkills, 'No tailored skills generated yet.')}
+          </ul>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Project order</div>
+          <ol class="metadata-list" id="projects-${a.id}">
+            ${renderMetadataList(projectOrder, 'No tailored project order generated yet.', true)}
+          </ol>
         </div>
 
         <div class="section" id="bullets-section-${a.id}" style="${a.about_text ? '' : 'display:none'}">
@@ -470,6 +493,15 @@ async function generateMaterials(id, regenerate = false) {
     if (!res.ok) { alert(data.error || 'Generation failed'); return; }
     document.getElementById(`about-${id}`).value = data.about;
     document.getElementById(`cover-${id}`).value = data.cover_letter;
+    updateMetadataList(`skills-${id}`, data.technical_skills, 'No tailored skills generated yet.');
+    updateMetadataList(`projects-${id}`, data.project_order, 'No tailored project order generated yet.', true);
+    const app = allApps.find(a => a.id === id);
+    if (app) {
+      app.about_text = data.about;
+      app.cover_letter = data.cover_letter;
+      app.technical_skills = data.technical_skills || [];
+      app.project_order = data.project_order || [];
+    }
     const bulletsSection = document.getElementById(`bullets-section-${id}`);
     const bulletsList    = document.getElementById(`bullets-${id}`);
     if (data.key_bullets?.length) {
@@ -550,6 +582,30 @@ function fmtDate(iso) {
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function parseCvList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(v => String(v).trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderMetadataList(items, emptyText, numbered = false) {
+  const values = parseCvList(items);
+  return values.length
+    ? values.map((item, index) => `<li>${numbered ? `${index + 1}. ` : ''}${esc(item)}</li>`).join('')
+    : `<li class="metadata-empty">${esc(emptyText)}</li>`;
+}
+
+function updateMetadataList(id, items, emptyText, numbered = false) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = renderMetadataList(items, emptyText, numbered);
 }
 
 load();

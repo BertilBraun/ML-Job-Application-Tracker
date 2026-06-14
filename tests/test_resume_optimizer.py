@@ -94,6 +94,8 @@ def test_resume_optimization_requires_application_plan():
         ),
         about='Tailored about',
         key_bullets=['Relevant bullet'],
+        technical_skills=['Programming: Python, C++', 'ML: PyTorch, JAX'],
+        project_order=['GNN-Based Traffic Signal Control'],
         cover_opener='Dear team,\n\nCover letter.',
     )
 
@@ -121,6 +123,8 @@ def test_generate_resume_optimization_uses_openai_responses_parse(monkeypatch):
         ),
         about='Tailored about',
         key_bullets=['Relevant bullet'],
+        technical_skills=['Programming: Python, C++', 'ML: PyTorch, JAX'],
+        project_order=['GybeLock - Multi-Object Tracking & Video Intelligence System'],
         cover_opener='Dear team,\n\nCover letter.',
     )
     captured = {}
@@ -174,3 +178,37 @@ def test_optimizer_prompt_requires_inspectable_application_plan():
     assert 'Return only valid JSON matching the provided schema' in system_prompt
     assert 'use the phrase' in system_prompt
     assert 'I like hard problems' in system_prompt
+
+
+def test_resume_optimization_validates_compact_skills_and_project_order():
+    result = ResumeOptimization(
+        application_plan=ApplicationPlan(
+            role_type='general_ml',
+            posting_type='specific_company',
+            main_evidence_thread='GybeLock',
+            supporting_evidence=[],
+            evidence_to_avoid_or_downplay=[],
+            claims_not_to_make=[],
+            tone_strategy='Factual and concise.',
+            cover_letter_angle='Anchor on applied ML systems.',
+        ),
+        about='Tailored about',
+        key_bullets=['Relevant bullet'],
+        technical_skills=[
+            'Programming: Python, C++',
+            'ML systems: PyTorch, JAX',
+            'Deployment: Docker, FastAPI',
+        ],
+        project_order=[
+            'GybeLock - Multi-Object Tracking & Video Intelligence System',
+            'GybeLock - Multi-Object Tracking & Video Intelligence System',
+        ],
+        cover_opener='Dear team,\n\nCover letter.',
+    )
+
+    assert result.technical_skills == [
+        'Programming: Python, C++',
+        'ML systems: PyTorch, JAX',
+        'Deployment: Docker, FastAPI',
+    ]
+    assert result.project_order == ['GybeLock - Multi-Object Tracking & Video Intelligence System']

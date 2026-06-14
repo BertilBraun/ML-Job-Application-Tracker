@@ -84,6 +84,8 @@ def test_generate_materials_passes_saved_guidance_to_optimizer(client, monkeypat
             ),
             about='Tailored about',
             key_bullets=['Relevant bullet'],
+            technical_skills=['Programming: Python, C++', 'ML: PyTorch, JAX'],
+            project_order=['GybeLock - Multi-Object Tracking & Video Intelligence System'],
             cover_opener='Dear team,\n\nCover letter.',
         )
 
@@ -97,3 +99,14 @@ def test_generate_materials_passes_saved_guidance_to_optimizer(client, monkeypat
         'force_regenerate': True,
         'language': 'en',
     }
+
+    body = response.get_json()
+    assert body['technical_skills'] == ['Programming: Python, C++', 'ML: PyTorch, JAX']
+    assert body['project_order'] == ['GybeLock - Multi-Object Tracking & Video Intelligence System']
+    with sqlite3.connect(db.DB_PATH) as conn:
+        saved = conn.execute(
+            'SELECT technical_skills, project_order FROM applications WHERE id = ?',
+            (app_id,),
+        ).fetchone()
+    assert saved[0] == '["Programming: Python, C++", "ML: PyTorch, JAX"]'
+    assert saved[1] == '["GybeLock - Multi-Object Tracking & Video Intelligence System"]'
