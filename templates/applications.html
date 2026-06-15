@@ -168,13 +168,6 @@
   .body-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #2d3748; flex-wrap: wrap; }
 
   .copy-hint { font-size: 0.72rem; color: #475569; margin-top: 3px; }
-  .materials-status {
-    font-size: 0.76rem; font-weight: 700; color: #60a5fa;
-    background: #10223f; border: 1px solid #1e3a5f; border-radius: 7px;
-    padding: 4px 8px; display: inline-flex; align-items: center;
-  }
-  .materials-status.failed { color: #f87171; background: #331012; border-color: #7f1d1d; }
-
   .empty-state { text-align: center; color: #475569; padding: 60px 0; font-size: 0.95rem; }
   .empty-state a { color: #3b82f6; }
 
@@ -323,9 +316,6 @@ function renderCard(a) {
   const projectOrder = parseCvList(a.project_order);
   const materialsStatus = a.materials_status || '';
   const isGenerating = materialsStatus === 'generating';
-  const generationLabel = isGenerating
-    ? '...Generating materials...'
-    : (materialsStatus === 'failed' ? 'Materials generation failed' : '');
   const duplicateMatches = a.status === 'draft' ? (a.possible_duplicates || []) : [];
   const hasPossibleDuplicate = duplicateMatches.length > 0;
   const duplicateText = hasPossibleDuplicate
@@ -432,7 +422,6 @@ function renderCard(a) {
     </div>
 
     <div class="body-actions">
-      ${generationLabel ? `<span class="materials-status ${materialsStatus === 'failed' ? 'failed' : ''}" id="materials-status-${a.id}">${generationLabel}</span>` : `<span class="materials-status" id="materials-status-${a.id}" style="display:none"></span>`}
       <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id}, ${a.about_text ? 'true' : 'false'})" ${isGenerating ? 'disabled' : ''}>
         ${isGenerating ? 'Generating materials...' : (a.about_text ? 'Regenerate materials' : 'Generate materials')}
       </button>
@@ -574,7 +563,6 @@ async function saveLanguage(id) {
 
 function setMaterialsStatus(id, status) {
   const btn = document.getElementById(`gen-btn-${id}`);
-  const badge = document.getElementById(`materials-status-${id}`);
   const app = allApps.find(a => a.id === id);
   if (app) app.materials_status = status;
 
@@ -583,19 +571,6 @@ function setMaterialsStatus(id, status) {
     btn.textContent = status === 'generating'
       ? 'Generating materials...'
       : ((app && app.about_text) ? 'Regenerate materials' : 'Generate materials');
-  }
-
-  if (!badge) return;
-  badge.classList.toggle('failed', status === 'failed');
-  if (status === 'generating') {
-    badge.textContent = '...Generating materials...';
-    badge.style.display = '';
-  } else if (status === 'failed') {
-    badge.textContent = 'Materials generation failed';
-    badge.style.display = '';
-  } else {
-    badge.textContent = '';
-    badge.style.display = 'none';
   }
 }
 

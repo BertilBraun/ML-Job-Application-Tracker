@@ -54,7 +54,8 @@ def test_applications_template_shows_material_generation_status():
     template = Path('templates/applications.html').read_text(encoding='utf-8')
 
     assert 'materials_status' in template
-    assert '...Generating materials...' in template
+    assert 'Generating materials...' in template
+    assert 'materials-status' not in template
     assert 'setMaterialsStatus' in template
     assert 'pollMaterialGeneration' in template
     assert 'syncGeneratedMaterials' in template
