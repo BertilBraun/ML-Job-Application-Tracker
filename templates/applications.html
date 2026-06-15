@@ -161,9 +161,15 @@
   .header-link {
     font-size: 0.72rem; padding: 3px 8px; border-radius: 6px;
     background: #1e2333; color: #94a3b8; border: 1px solid #2d3748;
-    text-decoration: none; white-space: nowrap;
+    text-decoration: none; white-space: nowrap; cursor: pointer; font-family: inherit;
   }
   .header-link:hover { background: #2d3748; color: #e2e8f0; }
+  button.header-link { appearance: none; }
+  .header-status-select {
+    font-size: 0.7rem; font-weight: 700; padding: 3px 24px 3px 9px;
+    border-radius: 6px; white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
+    border: 1px solid #2d3748; cursor: pointer;
+  }
 
   .body-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #2d3748; flex-wrap: wrap; }
 
@@ -329,6 +335,7 @@ function renderCard(a) {
 
   const links = [];
   if (a.listing_url) links.push(`<a href="${a.listing_url}" target="_blank" class="header-link">View listing</a>`);
+  links.push(`<button type="button" class="header-link" id="header-pdf-btn-${a.id}" onclick="downloadPdfs(${a.id})">Download PDFs</button>`);
   if (a.apply_url)   links.push(`<a href="${a.apply_url}"  target="_blank" class="header-link">Apply →</a>`);
 
   return `<div class="app-card status-${a.status}${hasPossibleDuplicate ? ' possible-duplicate' : ''}" id="card-${a.id}">
@@ -339,7 +346,9 @@ function renderCard(a) {
       ${hasPossibleDuplicate ? `<div class="duplicate-warning">${esc(duplicateText)}</div>` : ''}
     </div>
     <div class="header-links" onclick="event.stopPropagation()">${links.join('')}</div>
-    <span class="status-badge status-${a.status}">${STATUS_LABELS[a.status]}</span>
+    <select class="header-status-select status-${a.status}" id="header-status-${a.id}" onclick="event.stopPropagation()" onchange="updateStatus(${a.id}, this.value)">
+      ${STATUSES.map(s => `<option value="${s}" ${s === a.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+    </select>
     ${metaParts.length ? `<span class="app-meta">${esc(metaParts.join(' · '))}</span>` : ''}
     <span class="toggle-btn" id="toggle-${a.id}">▼</span>
   </div>
@@ -349,7 +358,7 @@ function renderCard(a) {
       <div>
         <div class="section">
           <div class="section-label">Status</div>
-          <select class="status-select" onchange="updateStatus(${a.id}, this.value)">
+          <select class="status-select" id="body-status-${a.id}" onchange="updateStatus(${a.id}, this.value)">
             ${STATUSES.map(s => `<option value="${s}" ${s === a.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
           </select>
         </div>
@@ -488,8 +497,14 @@ async function updateStatus(id, status) {
   const card = document.getElementById(`card-${id}`);
   STATUSES.forEach(s => card.classList.remove(`status-${s}`));
   card.classList.add(`status-${status}`);
-  card.querySelector('.status-badge').className = `status-badge status-${status}`;
-  card.querySelector('.status-badge').textContent = STATUS_LABELS[status];
+  const headerStatus = document.getElementById(`header-status-${id}`);
+  const bodyStatus = document.getElementById(`body-status-${id}`);
+  if (headerStatus) {
+    STATUSES.forEach(s => headerStatus.classList.remove(`status-${s}`));
+    headerStatus.classList.add(`status-${status}`);
+    headerStatus.value = status;
+  }
+  if (bodyStatus) bodyStatus.value = status;
   loadEvents(id);
   const app = allApps.find(a => a.id === id);
   if (app) app.status = status;
@@ -659,17 +674,24 @@ async function downloadTailoredCv(id) {
 }
 
 async function downloadPdfs(id) {
-  const btn = document.getElementById(`pdf-btn-${id}`);
-  btn.disabled = true;
-  btn.textContent = 'Downloading PDFs...';
+  const buttons = [
+    document.getElementById(`pdf-btn-${id}`),
+    document.getElementById(`header-pdf-btn-${id}`),
+  ].filter(Boolean);
+  buttons.forEach(btn => {
+    btn.disabled = true;
+    btn.textContent = 'Downloading PDFs...';
+  });
   try {
     await downloadCoverLetter(id);
     await downloadTailoredCv(id);
   } catch (err) {
     alert(err.message || 'PDF download failed');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Download PDFs';
+    buttons.forEach(btn => {
+      btn.disabled = false;
+      btn.textContent = 'Download PDFs';
+    });
   }
 }
 

@@ -7,6 +7,7 @@ def test_applications_template_exposes_tailored_cv_download_button():
     template = Path('templates/applications.html').read_text(encoding='utf-8')
 
     assert 'Download PDFs' in template
+    assert 'header-pdf-btn-${a.id}' in template
     assert 'downloadPdfs' in template
     assert 'downloadTailoredCv' in template
     assert "/api/applications/${id}/cv.pdf" in template
@@ -59,3 +60,12 @@ def test_applications_template_shows_material_generation_status():
     assert 'setMaterialsStatus' in template
     assert 'pollMaterialGeneration' in template
     assert 'syncGeneratedMaterials' in template
+
+
+def test_applications_template_exposes_header_status_select():
+    template = Path('templates/applications.html').read_text(encoding='utf-8')
+
+    assert 'header-status-select' in template
+    assert 'header-status-${a.id}' in template
+    assert 'body-status-${a.id}' in template
+    assert 'headerStatus.value = status' in template
