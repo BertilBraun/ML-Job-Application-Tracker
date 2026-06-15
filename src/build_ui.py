@@ -515,11 +515,13 @@ function openTrackerForCurrentApplication(event) {{
   window.open(`/applications?open=${{_currentAppId}}`, '_blank');
 }}
 
-function _markTracked(jobUrl, appId) {{
+function _markTracked(jobUrl, appId, materialsStatus = '') {{
   document.querySelectorAll('.hdr-apply').forEach(btn => {{
     if (btn.dataset.jobUrl === jobUrl) {{
       btn.textContent = 'Tracked ✓';
       btn.classList.add('hdr-tracked');
+      if (materialsStatus === 'generating') btn.textContent = 'Generating...';
+      btn.disabled = false;
       btn.onclick = () => openTrackerForApplication(appId);
     }}
   }});
@@ -528,16 +530,8 @@ function _markTracked(jobUrl, appId) {{
 async function startApplication(btn) {{
   const d = btn.dataset;
   _currentJobUrl = d.jobUrl;
-
-  document.getElementById('m-title').textContent   = d.jobTitle;
-  document.getElementById('m-company').textContent = d.jobCompany;
-  document.getElementById('m-status').textContent  = '';
-  document.getElementById('m-materials').style.display = 'none';
-  document.getElementById('m-gen-btn').disabled    = false;
-  document.getElementById('m-gen-btn').textContent = 'Generate materials';
-  document.getElementById('m-tracker-link').href   = '/applications';
-
-  document.getElementById('apply-modal').style.display = 'flex';
+  btn.disabled = true;
+  btn.textContent = 'Tracking...';
 
   const res  = await fetch('/api/applications', {{
     method: 'POST',
@@ -554,13 +548,8 @@ async function startApplication(btn) {{
   }});
   const data = await res.json();
   _currentAppId = data.id;
-  document.getElementById('m-tracker-link').href = `/applications?open=${{_currentAppId}}`;
-
-  if (data.existing) {{
-    document.getElementById('m-status').textContent = 'Already in tracker.';
-    document.getElementById('m-gen-btn').textContent = 'Regenerate materials';
-  }}
-  _markTracked(_currentJobUrl, _currentAppId);
+  _markTracked(_currentJobUrl, _currentAppId, 'generating');
+  fetch(`/api/applications/${{_currentAppId}}/generate-background`, {{method: 'POST'}}).catch(() => {{}});
 }}
 
 async function generateInModal() {{
@@ -598,7 +587,7 @@ function closeModal() {{
 // On load: mark already-tracked jobs
 fetch('/api/applications')
   .then(r => r.json())
-  .then(apps => apps.forEach(a => _markTracked(a.job_url, a.id)))
+  .then(apps => apps.forEach(a => _markTracked(a.job_url, a.id, a.materials_status || '')))
   .catch(() => {{}}); // server not running — graceful no-op
 </script>
 </body>

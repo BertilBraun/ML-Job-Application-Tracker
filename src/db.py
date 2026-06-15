@@ -37,6 +37,9 @@ def init_db() -> None:
                 technical_skills  TEXT,
                 project_order     TEXT,
                 cover_letter      TEXT,
+                job_payload       TEXT,
+                analysis_payload  TEXT,
+                materials_status  TEXT    NOT NULL DEFAULT '',
                 generation_guidance TEXT NOT NULL DEFAULT '',
                 language          TEXT    NOT NULL DEFAULT 'en',
                 notes             TEXT    NOT NULL DEFAULT '',
@@ -59,3 +62,9 @@ def init_db() -> None:
             conn.execute("ALTER TABLE applications ADD COLUMN technical_skills TEXT")
         if 'project_order' not in columns:
             conn.execute("ALTER TABLE applications ADD COLUMN project_order TEXT")
+        if 'job_payload' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN job_payload TEXT")
+        if 'analysis_payload' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN analysis_payload TEXT")
+        if 'materials_status' not in columns:
+            conn.execute("ALTER TABLE applications ADD COLUMN materials_status TEXT NOT NULL DEFAULT ''")

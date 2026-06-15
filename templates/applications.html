@@ -32,6 +32,20 @@
   }
   .stat.active { border-color: #3b82f6; color: #e2e8f0; }
   .stat strong { color: #f1f5f9; font-size: 1rem; display: block; }
+  .import-row {
+    display: flex; gap: 8px; max-width: 920px; margin: 0 auto 16px;
+    align-items: center;
+  }
+  .import-row input { flex: 1; }
+  .import-status { font-size: 0.78rem; color: #64748b; min-width: 170px; }
+  .import-status-list {
+    max-width: 920px; margin: -8px auto 16px; display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.78rem; color: #94a3b8;
+  }
+  .import-status-item { color: #94a3b8; }
+  .import-status-item.done { color: #4ade80; }
+  .import-status-item.failed { color: #f87171; }
+  @media (max-width: 650px) { .import-row { flex-direction: column; align-items: stretch; } .import-status { min-width: 0; } }
 
   .cards { display: flex; flex-direction: column; gap: 10px; max-width: 920px; margin: 0 auto; }
 
@@ -154,6 +168,12 @@
   .body-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #2d3748; flex-wrap: wrap; }
 
   .copy-hint { font-size: 0.72rem; color: #475569; margin-top: 3px; }
+  .materials-status {
+    font-size: 0.76rem; font-weight: 700; color: #60a5fa;
+    background: #10223f; border: 1px solid #1e3a5f; border-radius: 7px;
+    padding: 4px 8px; display: inline-flex; align-items: center;
+  }
+  .materials-status.failed { color: #f87171; background: #331012; border-color: #7f1d1d; }
 
   .empty-state { text-align: center; color: #475569; padding: 60px 0; font-size: 0.95rem; }
   .empty-state a { color: #3b82f6; }
@@ -177,6 +197,12 @@
   </div>
 
   <div class="stats" id="stats"></div>
+  <div class="import-row">
+    <input type="text" id="import-url" placeholder="Paste job URL to import and track">
+    <button class="btn btn-primary btn-sm" id="import-btn" onclick="importJobUrl()">Import URL</button>
+    <span class="import-status" id="import-status"></span>
+  </div>
+  <div class="import-status-list" id="import-status-list"></div>
   <div class="cards" id="cards"><div class="empty-state">Loading...</div></div>
 </div>
 
@@ -190,12 +216,72 @@ const STATUS_LABELS = {
 let allApps = [];
 let activeFilter = '';
 let openAppId = new URLSearchParams(window.location.search).get('open');
+let pollingMaterials = false;
 
 async function load() {
+  const openIds = getOpenCardIds();
   const res = await fetch('/api/applications');
   allApps = await res.json();
   renderStats();
   renderCards();
+  restoreOpenCards(openIds);
+}
+
+function getOpenCardIds() {
+  return Array.from(document.querySelectorAll('.app-body'))
+    .filter(body => getComputedStyle(body).display !== 'none')
+    .map(body => body.id.replace('body-', ''));
+}
+
+function restoreOpenCards(ids) {
+  ids.forEach(id => {
+    const body = document.getElementById(`body-${id}`);
+    const toggle = document.getElementById(`toggle-${id}`);
+    if (!body || !toggle) return;
+    body.style.display = 'block';
+    toggle.classList.add('open');
+  });
+}
+
+async function importJobUrl() {
+  const input = document.getElementById('import-url');
+  const status = document.getElementById('import-status');
+  const statusList = document.getElementById('import-status-list');
+  const url = input.value.trim();
+  if (!url) return;
+
+  input.value = '';
+  status.textContent = 'Import started.';
+  const item = document.createElement('div');
+  item.className = 'import-status-item';
+  item.textContent = `...Importing from ${url}...`;
+  statusList.prepend(item);
+
+  try {
+    const res = await fetch('/api/applications/import-url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.textContent = data.error || 'Import failed';
+      item.classList.add('failed');
+      item.textContent = `Import failed: ${url}`;
+      return;
+    }
+    openAppId = String(data.id);
+    status.textContent = 'Tracked. Materials generation started.';
+    item.classList.add('done');
+    item.textContent = `Tracked ${data.job?.title || 'job'} at ${data.job?.company || 'company'}; generating materials.`;
+    await load();
+  } catch (err) {
+    status.textContent = 'Import failed';
+    item.classList.add('failed');
+    item.textContent = `Import failed: ${url}`;
+  } finally {
+    input.focus();
+  }
 }
 
 function renderStats() {
@@ -235,6 +321,11 @@ function renderCard(a) {
   const applied = a.applied_at ? new Date(a.applied_at).toLocaleDateString() : null;
   const technicalSkills = parseCvList(a.technical_skills);
   const projectOrder = parseCvList(a.project_order);
+  const materialsStatus = a.materials_status || '';
+  const isGenerating = materialsStatus === 'generating';
+  const generationLabel = isGenerating
+    ? '...Generating materials...'
+    : (materialsStatus === 'failed' ? 'Materials generation failed' : '');
   const duplicateMatches = a.status === 'draft' ? (a.possible_duplicates || []) : [];
   const hasPossibleDuplicate = duplicateMatches.length > 0;
   const duplicateText = hasPossibleDuplicate
@@ -341,11 +432,11 @@ function renderCard(a) {
     </div>
 
     <div class="body-actions">
-      <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id}, ${a.about_text ? 'true' : 'false'})">
-        ${a.about_text ? 'Regenerate materials' : 'Generate materials'}
+      ${generationLabel ? `<span class="materials-status ${materialsStatus === 'failed' ? 'failed' : ''}" id="materials-status-${a.id}">${generationLabel}</span>` : `<span class="materials-status" id="materials-status-${a.id}" style="display:none"></span>`}
+      <button class="btn btn-primary btn-sm" id="gen-btn-${a.id}" onclick="generateMaterials(${a.id}, ${a.about_text ? 'true' : 'false'})" ${isGenerating ? 'disabled' : ''}>
+        ${isGenerating ? 'Generating materials...' : (a.about_text ? 'Regenerate materials' : 'Generate materials')}
       </button>
-      <button class="btn btn-secondary btn-sm" onclick="downloadCoverLetter(${a.id})">Download cover letter PDF</button>
-      <button class="btn btn-secondary btn-sm" id="cv-btn-${a.id}" onclick="downloadTailoredCv(${a.id})">Download tailored CV PDF</button>
+      <button class="btn btn-secondary btn-sm" id="pdf-btn-${a.id}" onclick="downloadPdfs(${a.id})">Download PDFs</button>
       ${!a.applied_at ? `<button class="btn btn-secondary btn-sm" onclick="markApplied(${a.id})">Mark as applied</button>` : ''}
       <button class="btn btn-danger btn-sm" onclick="deleteApp(${a.id})">Delete</button>
     </div>
@@ -481,16 +572,48 @@ async function saveLanguage(id) {
   });
 }
 
+function setMaterialsStatus(id, status) {
+  const btn = document.getElementById(`gen-btn-${id}`);
+  const badge = document.getElementById(`materials-status-${id}`);
+  const app = allApps.find(a => a.id === id);
+  if (app) app.materials_status = status;
+
+  if (btn) {
+    btn.disabled = status === 'generating';
+    btn.textContent = status === 'generating'
+      ? 'Generating materials...'
+      : ((app && app.about_text) ? 'Regenerate materials' : 'Generate materials');
+  }
+
+  if (!badge) return;
+  badge.classList.toggle('failed', status === 'failed');
+  if (status === 'generating') {
+    badge.textContent = '...Generating materials...';
+    badge.style.display = '';
+  } else if (status === 'failed') {
+    badge.textContent = 'Materials generation failed';
+    badge.style.display = '';
+  } else {
+    badge.textContent = '';
+    badge.style.display = 'none';
+  }
+}
+
 async function generateMaterials(id, regenerate = false) {
   const btn = document.getElementById(`gen-btn-${id}`);
   btn.disabled = true;
+  setMaterialsStatus(id, 'generating');
   btn.textContent = 'Generating…';
   try {
     await saveGuidance(id);
     await saveLanguage(id);
     const res = await fetch(`/api/applications/${id}/generate?force_regenerate=${regenerate}`, {method: 'POST'});
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Generation failed'); return; }
+    if (!res.ok) {
+      setMaterialsStatus(id, 'failed');
+      alert(data.error || 'Generation failed');
+      return;
+    }
     document.getElementById(`about-${id}`).value = data.about;
     document.getElementById(`cover-${id}`).value = data.cover_letter;
     updateMetadataList(`skills-${id}`, data.technical_skills, 'No tailored skills generated yet.');
@@ -501,6 +624,7 @@ async function generateMaterials(id, regenerate = false) {
       app.cover_letter = data.cover_letter;
       app.technical_skills = data.technical_skills || [];
       app.project_order = data.project_order || [];
+      app.materials_status = data.materials_status || 'ready';
     }
     const bulletsSection = document.getElementById(`bullets-section-${id}`);
     const bulletsList    = document.getElementById(`bullets-${id}`);
@@ -508,6 +632,7 @@ async function generateMaterials(id, regenerate = false) {
       bulletsList.innerHTML = data.key_bullets.map(b => `<li>${esc(b)}</li>`).join('');
       bulletsSection.style.display = '';
     }
+    setMaterialsStatus(id, 'ready');
     btn.textContent = 'Regenerate materials';
     loadEvents(id);
   } finally {
@@ -515,13 +640,10 @@ async function generateMaterials(id, regenerate = false) {
   }
 }
 
-async function downloadCoverLetter(id) {
-  await saveCover(id);
-  const res = await fetch(`/api/applications/${id}/cover-letter.pdf`);
+async function downloadResponseBlob(res, fallbackName) {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    alert(data.error || 'Cover letter PDF generation failed');
-    return;
+    throw new Error(data.error || 'PDF generation failed');
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -529,40 +651,50 @@ async function downloadCoverLetter(id) {
   const disposition = res.headers.get('Content-Disposition') || '';
   const match = disposition.match(/filename="?([^"]+)"?/);
   link.href = url;
-  link.download = match ? match[1] : 'cover-letter.pdf';
+  link.download = match ? match[1] : fallbackName;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
 }
 
+async function downloadCoverLetter(id) {
+  await saveCover(id);
+  const res = await fetch(`/api/applications/${id}/cover-letter.pdf`);
+  await downloadResponseBlob(res, 'cover-letter.pdf');
+}
+
 async function downloadTailoredCv(id) {
   await saveAbout(id);
   const btn = document.getElementById(`cv-btn-${id}`);
-  btn.disabled = true;
-  btn.textContent = 'Updating FlowCV...';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Updating FlowCV...';
+  }
   try {
     const res = await fetch(`/api/applications/${id}/cv.pdf`, {method: 'POST'});
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Tailored CV PDF generation failed');
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const disposition = res.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    link.href = url;
-    link.download = match ? match[1] : 'cv.pdf';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    await downloadResponseBlob(res, 'cv.pdf');
     loadEvents(id);
   } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Download tailored CV PDF';
+    }
+  }
+}
+
+async function downloadPdfs(id) {
+  const btn = document.getElementById(`pdf-btn-${id}`);
+  btn.disabled = true;
+  btn.textContent = 'Downloading PDFs...';
+  try {
+    await downloadCoverLetter(id);
+    await downloadTailoredCv(id);
+  } catch (err) {
+    alert(err.message || 'PDF download failed');
+  } finally {
     btn.disabled = false;
-    btn.textContent = 'Download tailored CV PDF';
+    btn.textContent = 'Download PDFs';
   }
 }
 
@@ -608,7 +740,52 @@ function updateMetadataList(id, items, emptyText, numbered = false) {
   el.innerHTML = renderMetadataList(items, emptyText, numbered);
 }
 
+function syncGeneratedMaterials(app) {
+  const about = document.getElementById(`about-${app.id}`);
+  const cover = document.getElementById(`cover-${app.id}`);
+  if (about && document.activeElement !== about) about.value = app.about_text || '';
+  if (cover && document.activeElement !== cover) cover.value = app.cover_letter || '';
+  updateMetadataList(`skills-${app.id}`, app.technical_skills, 'No tailored skills generated yet.');
+  updateMetadataList(`projects-${app.id}`, app.project_order, 'No tailored project order generated yet.', true);
+
+  const bulletsSection = document.getElementById(`bullets-section-${app.id}`);
+  if (bulletsSection) bulletsSection.style.display = app.about_text ? '' : 'none';
+  setMaterialsStatus(app.id, app.materials_status || '');
+}
+
+async function pollMaterialGeneration() {
+  if (pollingMaterials || !allApps.some(a => a.materials_status === 'generating')) return;
+  pollingMaterials = true;
+  try {
+    const previous = new Map(allApps.map(a => [a.id, a.materials_status || '']));
+    const openIds = getOpenCardIds();
+    const res = await fetch('/api/applications');
+    const nextApps = await res.json();
+    allApps = nextApps;
+    renderStats();
+
+    nextApps.forEach(app => {
+      const card = document.getElementById(`card-${app.id}`);
+      if (!card) return;
+      syncGeneratedMaterials(app);
+      if (previous.get(app.id) === 'generating' && app.materials_status !== 'generating') {
+        loadEvents(app.id);
+      }
+    });
+
+    if (openIds.length) restoreOpenCards(openIds);
+    if (nextApps.some(a => a.materials_status === 'generating')) {
+      setTimeout(pollMaterialGeneration, 2500);
+    }
+  } finally {
+    pollingMaterials = false;
+  }
+}
+
 load();
+setInterval(() => {
+  pollMaterialGeneration();
+}, 2500);
 </script>
 </body>
 </html>

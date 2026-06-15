@@ -31,3 +31,6 @@ def test_init_db_migrates_tailored_cv_columns(tmp_path, monkeypatch):
 
     assert 'technical_skills' in columns
     assert 'project_order' in columns
+    assert 'job_payload' in columns
+    assert 'analysis_payload' in columns
+    assert 'materials_status' in columns

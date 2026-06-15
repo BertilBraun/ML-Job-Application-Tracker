@@ -38,3 +38,14 @@ def test_results_tracker_link_opens_created_application_in_new_tab():
     assert 'openTrackerForCurrentApplication' in html
     assert "window.open(`/applications?open=${_currentAppId}`, '_blank')" in html
     assert "btn.onclick = () => openTrackerForApplication(appId)" in html
+
+
+def test_results_track_starts_background_generation_without_modal():
+    html = build([_entry()])
+
+    assert 'generate-background' in html
+    assert "btn.textContent = 'Tracking...'" in html
+    assert "_markTracked(_currentJobUrl, _currentAppId, 'generating')" in html
+    assert "a.materials_status || ''" in html
+    assert "Generating..." in html
+    assert "document.getElementById('apply-modal').style.display = 'flex';" not in html

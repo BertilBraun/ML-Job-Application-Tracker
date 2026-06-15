@@ -4,13 +4,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
+try:
+    from .models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
+except ImportError:
+    from models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
 
 load_dotenv()
 
 CACHE_DIR = Path(__file__).parent.parent / 'cache'
 
-client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+client: genai.Client | None = None
 
 _system_prompt: str | None = None
 
@@ -57,29 +60,34 @@ Score each dimension independently on a 0–10 scale:
     return _system_prompt
 
 
-def _analysis_cache_path(url: str, system_prompt: str) -> Path:
-    key = hashlib.md5((system_prompt + url).encode()).hexdigest()
+def _analysis_cache_path(job: JobListing, system_prompt: str) -> Path:
+    key_material = '\n'.join([system_prompt, job.model_dump_json()])
+    key = hashlib.md5(key_material.encode()).hexdigest()
     return CACHE_DIR / f'{key}_analysis.json'
 
 
-def _load_analysis_cache(url: str, system_prompt: str) -> JobAnalysis | None:
-    path = _analysis_cache_path(url, system_prompt)
+def _load_analysis_cache(job: JobListing, system_prompt: str) -> JobAnalysis | None:
+    path = _analysis_cache_path(job, system_prompt)
     if path.exists():
         return JobAnalysis.model_validate_json(path.read_text(encoding='utf-8'))
     return None
 
 
-def _save_analysis_cache(url: str, system_prompt: str, analysis: JobAnalysis) -> None:
+def _save_analysis_cache(job: JobListing, system_prompt: str, analysis: JobAnalysis) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _analysis_cache_path(url, system_prompt).write_text(
+    _analysis_cache_path(job, system_prompt).write_text(
         analysis.model_dump_json(), encoding='utf-8'
     )
 
 
 def analyze_job(job: JobListing) -> JobAnalysis | None:
+    global client
+    if client is None:
+        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+
     system_prompt = _build_system_prompt()
 
-    cached = _load_analysis_cache(job.url, system_prompt)
+    cached = _load_analysis_cache(job, system_prompt)
     if cached is not None:
         print('      (cached)')
         cached.overall_score = compute_overall_score(cached)
@@ -120,7 +128,7 @@ Date Posted: {job.date_added or 'Not specified'}
             raise ValueError('Empty response from model')
         raw = _RawJobAnalysis.model_validate_json(response.text)
         result = JobAnalysis(**raw.model_dump(), overall_score=compute_overall_score(raw))
-        _save_analysis_cache(job.url, system_prompt, result)
+        _save_analysis_cache(job, system_prompt, result)
         return result
     except Exception as e:
         print(f'    Analysis error: {e}')

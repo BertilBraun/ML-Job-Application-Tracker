@@ -7,6 +7,7 @@ Run: python serve.py
 
 import json
 import re
+import threading
 import unicodedata
 from difflib import SequenceMatcher
 from io import BytesIO
@@ -18,6 +19,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 from playwright.sync_api import sync_playwright
 
 from src.db import get_db, init_db
+from src.analyzer import analyze_job
 from src.flowcv_automation import (
     DOWNLOAD_DIR,
     FlowCVError,
@@ -25,6 +27,7 @@ from src.flowcv_automation import (
     replace_cv_content_and_download,
     validate_about_text,
 )
+from src.job_importer import import_job_from_url
 from src.models import JobAnalysis, JobListing
 from src.resume_optimizer import optimize_resume
 
@@ -66,6 +69,10 @@ def _json_list(value: str | None) -> list[str]:
 
 def _dump_json_list(value: list[str]) -> str:
     return json.dumps(value, ensure_ascii=False)
+
+
+def _dump_model(value) -> str:
+    return value.model_dump_json()
 
 
 SENDER_CITY = 'Karlsruhe/Stuttgart'
@@ -231,7 +238,26 @@ def _render_cover_letter_pdf(row: dict) -> bytes:
         return pdf
 
 
+def _job_from_application_row(row: dict) -> tuple[JobListing, JobAnalysis] | None:
+    if not row.get('job_payload') or not row.get('analysis_payload'):
+        return None
+    try:
+        return (
+            JobListing.model_validate_json(row['job_payload']),
+            JobAnalysis.model_validate_json(row['analysis_payload']),
+        )
+    except Exception:
+        return None
+
+
 def _find_job(job_url: str) -> tuple[JobListing, JobAnalysis] | None:
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM applications WHERE job_url = ?', (job_url,)).fetchone()
+        if row:
+            stored = _job_from_application_row(dict(row))
+            if stored:
+                return stored
+
     for entry in _load_results():
         if entry['job']['url'] == job_url:
             return (
@@ -239,6 +265,100 @@ def _find_job(job_url: str) -> tuple[JobListing, JobAnalysis] | None:
                 JobAnalysis.model_validate(entry['analysis']),
             )
     return None
+
+
+def _find_result_entry(job_url: str) -> dict | None:
+    for entry in _load_results():
+        if entry['job']['url'] == job_url:
+            return entry
+    return None
+
+
+def _set_materials_status(app_id: int, status: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE applications SET materials_status = ? WHERE id = ?',
+            (status, app_id),
+        )
+
+
+def _generate_materials_for_app(
+    app_id: int,
+    *,
+    force_regenerate: bool = False,
+) -> tuple[dict, int]:
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
+        if not row:
+            return {'error': 'Not found'}, 404
+        row = dict(row)
+
+    result = _job_from_application_row(row) or _find_job(row['job_url'])
+    if not result:
+        _set_materials_status(app_id, 'failed')
+        return {'error': 'Job not found in stored application data or results.json — re-run scrape.py?'}, 404
+
+    job, analysis = result
+    _set_materials_status(app_id, 'generating')
+    try:
+        opt = optimize_resume(
+            job,
+            analysis,
+            force_regenerate=force_regenerate,
+            guidance=row.get('generation_guidance') or '',
+            language=row.get('language') or 'en',
+        )
+    except Exception:
+        _set_materials_status(app_id, 'failed')
+        raise
+    if not opt:
+        _set_materials_status(app_id, 'failed')
+        return {'error': 'Generation failed'}, 500
+
+    with get_db() as conn:
+        conn.execute(
+            (
+                'UPDATE applications '
+                'SET about_text = ?, technical_skills = ?, project_order = ?, cover_letter = ?, '
+                'materials_status = ? '
+                'WHERE id = ?'
+            ),
+            (
+                opt.about,
+                _dump_json_list(opt.technical_skills),
+                _dump_json_list(opt.project_order),
+                opt.cover_opener,
+                'ready',
+                app_id,
+            ),
+        )
+        conn.execute(
+            'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
+            (app_id, _now(), 'Generated tailored CV content and cover letter'),
+        )
+
+    return {
+        'about': opt.about,
+        'technical_skills': opt.technical_skills,
+        'project_order': opt.project_order,
+        'cover_letter': opt.cover_opener,
+        'key_bullets': opt.key_bullets,
+        'materials_status': 'ready',
+    }, 200
+
+
+def _start_background_generation(app_id: int, *, force_regenerate: bool = False) -> None:
+    def run() -> None:
+        payload, status = _generate_materials_for_app(app_id, force_regenerate=force_regenerate)
+        if status >= 400:
+            with get_db() as conn:
+                conn.execute(
+                    'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
+                    (app_id, _now(), f'Background generation failed: {payload.get("error", "unknown error")}'),
+                )
+
+    _set_materials_status(app_id, 'generating')
+    threading.Thread(target=run, daemon=True).start()
 
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
@@ -279,10 +399,19 @@ def create_application():
         if existing:
             return jsonify({'id': existing['id'], 'existing': True})
 
+        job_payload = data.get('job_payload')
+        analysis_payload = data.get('analysis_payload')
+        if not job_payload or not analysis_payload:
+            result_entry = _find_result_entry(job_url)
+            if result_entry:
+                job_payload = job_payload or json.dumps(result_entry['job'], ensure_ascii=False)
+                analysis_payload = analysis_payload or json.dumps(result_entry['analysis'], ensure_ascii=False)
+
         conn.execute(
             """INSERT INTO applications
-               (job_url, job_title, company, listing_url, apply_url, location, salary, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?)""",
+               (job_url, job_title, company, listing_url, apply_url, location, salary, status,
+                created_at, job_payload, analysis_payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)""",
             (
                 job_url,
                 data.get('job_title', ''),
@@ -292,6 +421,8 @@ def create_application():
                 data.get('location', ''),
                 data.get('salary', ''),
                 _now(),
+                job_payload,
+                analysis_payload,
             ),
         )
         app_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -302,10 +433,87 @@ def create_application():
         return jsonify({'id': app_id, 'existing': False}), 201
 
 
+@app.route('/api/applications/import-url', methods=['POST'])
+def import_application_url():
+    data = request.get_json()
+    url = (data.get('url') or '').strip()
+    if not url:
+        return jsonify({'error': 'url required'}), 400
+
+    try:
+        job, imported_page = import_job_from_url(url)
+    except Exception as exc:
+        return jsonify({'error': f'Job import failed: {exc}'}), 500
+
+    analysis = analyze_job(job)
+    if not analysis:
+        return jsonify({'error': 'Job analysis failed'}), 500
+
+    with get_db() as conn:
+        existing = conn.execute('SELECT id FROM applications WHERE job_url = ?', (job.url,)).fetchone()
+        if existing:
+            app_id = existing['id']
+            conn.execute(
+                (
+                    'UPDATE applications SET job_title = ?, company = ?, listing_url = ?, apply_url = ?, '
+                    'location = ?, salary = ?, job_payload = ?, analysis_payload = ? WHERE id = ?'
+                ),
+                (
+                    job.title,
+                    job.company,
+                    job.url,
+                    job.apply_url or '',
+                    job.location,
+                    job.salary or '',
+                    _dump_model(job),
+                    _dump_model(analysis),
+                    app_id,
+                ),
+            )
+            existing_flag = True
+        else:
+            conn.execute(
+                """INSERT INTO applications
+                   (job_url, job_title, company, listing_url, apply_url, location, salary, status,
+                    created_at, job_payload, analysis_payload)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)""",
+                (
+                    job.url,
+                    job.title,
+                    job.company,
+                    job.url,
+                    job.apply_url or '',
+                    job.location,
+                    job.salary or '',
+                    _now(),
+                    _dump_model(job),
+                    _dump_model(analysis),
+                ),
+            )
+            app_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+            conn.execute(
+                'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
+                (app_id, _now(), f'Imported job URL via Playwright Markdown: {imported_page.final_url}'),
+            )
+            existing_flag = False
+
+    _start_background_generation(app_id)
+    return jsonify(
+        {
+            'id': app_id,
+            'existing': existing_flag,
+            'job': job.model_dump(),
+            'analysis': analysis.model_dump(),
+        }
+    ), 200 if existing_flag else 201
+
+
 @app.route('/api/applications/<int:app_id>/generate', methods=['POST'])
 def generate_materials(app_id: int):
-    # get the force_regenerate flag from the request query parameters, defaulting to False if not provided
     force_regenerate = request.args.get('force_regenerate', 'false').lower() == 'true'
+    payload, status = _generate_materials_for_app(app_id, force_regenerate=force_regenerate)
+    return jsonify(payload), status
+
     with get_db() as conn:
         row = conn.execute('SELECT * FROM applications WHERE id = ?', (app_id,)).fetchone()
         if not row:
@@ -354,6 +562,25 @@ def generate_materials(app_id: int):
                 'key_bullets': opt.key_bullets,
             }
         )
+
+
+@app.route('/api/applications/<int:app_id>/generate-background', methods=['POST'])
+def generate_materials_background(app_id: int):
+    force_regenerate = request.args.get('force_regenerate', 'false').lower() == 'true'
+    with get_db() as conn:
+        row = conn.execute('SELECT id FROM applications WHERE id = ?', (app_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Not found'}), 404
+        conn.execute(
+            'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
+            (app_id, _now(), 'Queued tailored CV and cover letter generation'),
+        )
+        conn.execute(
+            'UPDATE applications SET materials_status = ? WHERE id = ?',
+            ('generating', app_id),
+        )
+    _start_background_generation(app_id, force_regenerate=force_regenerate)
+    return jsonify({'ok': True, 'id': app_id}), 202
 
 
 @app.route('/api/applications/<int:app_id>/cover-letter.pdf', methods=['GET'])
