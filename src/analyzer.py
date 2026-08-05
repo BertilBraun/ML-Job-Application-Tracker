@@ -13,6 +13,7 @@ except ImportError:
 load_dotenv()
 
 CACHE_DIR = Path(__file__).parent.parent / 'cache'
+REQUEST_TIMEOUT_MS = 60_000
 
 client: genai.Client | None = None
 
@@ -112,7 +113,10 @@ def _save_analysis_cache(job: JobListing, system_prompt: str, analysis: JobAnaly
 def analyze_job(job: JobListing) -> JobAnalysis | None:
     global client
     if client is None:
-        client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+        client = genai.Client(
+            api_key=os.environ['GEMINI_API_KEY'],
+            http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+        )
 
     system_prompt = _build_system_prompt()
 

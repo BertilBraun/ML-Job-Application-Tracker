@@ -13,8 +13,20 @@ from pydantic import TypeAdapter
 
 # Force UTF-8 output on Windows to handle emoji in job data
 if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer,
+        encoding='utf-8',
+        errors='replace',
+        line_buffering=True,
+        write_through=True,
+    )
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer,
+        encoding='utf-8',
+        errors='replace',
+        line_buffering=True,
+        write_through=True,
+    )
 
 from src.analyzer import analyze_job
 from src.build_ui import build as build_ui
