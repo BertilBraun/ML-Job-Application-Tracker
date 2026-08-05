@@ -4,10 +4,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+
 try:
-    from .models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
+    from .models import JobAnalysis, JobListing, _RawJobAnalysis, build_job_analysis
 except ImportError:
-    from models import JobListing, JobAnalysis, _RawJobAnalysis, compute_overall_score
+    from models import JobAnalysis, JobListing, _RawJobAnalysis, build_job_analysis
 
 load_dotenv()
 
@@ -22,41 +23,69 @@ def _build_system_prompt() -> str:
     global _system_prompt
     if _system_prompt is None:
         profile = (Path(__file__).parent.parent / 'PROFILE.md').read_text(encoding='utf-8')
-        _system_prompt = f"""You are evaluating job listings for a specific candidate. Your goal is to assess POSITION FIT — how good is this job for this candidate — not primarily whether they'll get hired. A great position scores high even with uncertain acceptance probability.
+        resume = (Path(__file__).parent.parent / 'RESUME.md').read_text(encoding='utf-8')
+        evidence = (Path(__file__).parent.parent / 'CANDIDATE_EVIDENCE.md').read_text(encoding='utf-8')
+        _system_prompt = f"""You are evaluating job listings for a specific candidate.
+
+Keep three questions separate:
+- OPPORTUNITY FIT: is the role, team, work, and location attractive to the candidate?
+- TECHNICAL MATCH: does the candidate have relevant foundations and evidence to contribute and grow into the work?
+- CV SCREENING FIT: is the current documented experience likely to pass the initial resume screen?
+
+The candidate intentionally wants technically ambitious roles and learns quickly. Give real project depth full credit in technical match. Do not convert that potential into fictitious full-time tenure or senior-level resume evidence when assessing screening fit.
 
 <candidate_profile>
 {profile}
 </candidate_profile>
 
+<candidate_resume>
+{resume}
+</candidate_resume>
+
+<candidate_evidence>
+{evidence}
+</candidate_evidence>
+
 Score each dimension independently on a 0–10 scale:
 
-1. TEAM (most important — weight 40%)
+1. TEAM
    Does the candidate have senior ML/AI colleagues to learn from who are working on similar problems?
    - HIGH (8–10): dedicated ML team with experienced researchers/engineers; candidate contributes to a larger ML effort
    - MID (4–7): small but technically solid team; some ML peers
    - LOW (0–3): sole ML expert; non-technical team; "build our ML from scratch alone"; no mention of existing ML colleagues
    - HARD RED FLAG: "you will own ML end-to-end" with no existing ML team
 
-2. WORK IMPACT (weight 25%)
+2. WORK IMPACT
    Is the work meaningful AND technically substantive?
    - HIGH: scientific research, healthcare/medical AI, climate, safety-critical systems, education, infrastructure, serious engineering products
    - MID: standard SaaS ML features, recommendation systems with real data
    - LOW: AI chat companions, social media engagement optimization, crypto/NFT, gambling, manipulative ad tech, pure prompt engineering / API glue with no real model work
    The question is: does the day-to-day involve real model work (training, evaluation, architecture) or just stitching APIs?
 
-3. LOCATION (weight 20%)
+3. LOCATION
    Assess against the candidate's preferences stated in the profile.
    - WORKS (score 7–10): hybrid in south Germany / Switzerland / Austria, OR genuinely remote-from-Germany
    - BORDERLINE (score 4–6): remote role but unclear if remote-from-Germany is genuinely supported
    - DOESN'T WORK (works=False, score 0–3): on-site outside DACH, or "remote" that clearly requires local presence
    For any non-DACH remote role: explicitly assess whether remote-from-Germany is real or just marketing copy.
 
-4. CANDIDATE FIT (weight 15%)
-   Honest technical match and realistic acceptance probability.
-   The candidate has strong breadth (RL, CV, LLMs, systems) and real results, but ~4 years of working-student experience rather than full-time industry tenure. Be realistic — many "mid-level" roles expect 3–5 years full-time. Don't over-penalise project depth; don't ignore genuine experience gaps.
+4. CANDIDATE FIT — return two deliberately different judgments
+   a. `score` and `reasoning`: TECHNICAL MATCH and growth potential.
+      - HIGH (8–10): directly relevant systems, methods, and demonstrated depth; credible ability to contribute even if the title is a stretch
+      - MID (5–7): transferable foundations but meaningful domain or systems gaps
+      - LOW (0–4): little evidence for the actual technical work
+   b. `screening_score` and `screening_reasoning`: CURRENT CV SCREENING FIT.
+      - HIGH (8–10): meets the stated career level, required years/credentials, and direct evidence is visible on the CV
+      - PLAUSIBLE (6–7): credible screen pass with only modest experience gaps
+      - STRETCH (4–5): strong adjacent projects or technical potential, but the CV is clearly short on full-time tenure, exact domain evidence, or required credentials
+      - LOW (0–3): staff/principal/lead ownership, major hard requirements, or experience expectations are far beyond the documented CV
+   The candidate has roughly four years of part-time working-student experience, not four years of full-time industry tenure. Do not call those equivalent. A senior title is usually a screening stretch even when technical match is high.
+   Put only explicit, non-negotiable requirements the candidate clearly lacks in `hard_blockers`. Ordinary gaps belong in `gaps`, not `hard_blockers`.
 
 5. SALARY (context only, not scored)
-   Target ~€80k. If salary is listed, note and compare. If NOT listed, return empty string — never estimate or speculate."""
+   Target ~€80k. If salary is listed, note and compare. If NOT listed, return empty string — never estimate or speculate.
+
+Do not return a recommendation. Recommendation and ranking are computed deterministically after your assessment."""
     return _system_prompt
 
 
@@ -69,15 +98,15 @@ def _analysis_cache_path(job: JobListing, system_prompt: str) -> Path:
 def _load_analysis_cache(job: JobListing, system_prompt: str) -> JobAnalysis | None:
     path = _analysis_cache_path(job, system_prompt)
     if path.exists():
-        return JobAnalysis.model_validate_json(path.read_text(encoding='utf-8'))
+        cached = JobAnalysis.model_validate_json(path.read_text(encoding='utf-8'))
+        raw = _RawJobAnalysis.model_validate(cached.model_dump())
+        return build_job_analysis(raw, job)
     return None
 
 
 def _save_analysis_cache(job: JobListing, system_prompt: str, analysis: JobAnalysis) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _analysis_cache_path(job, system_prompt).write_text(
-        analysis.model_dump_json(), encoding='utf-8'
-    )
+    _analysis_cache_path(job, system_prompt).write_text(analysis.model_dump_json(), encoding='utf-8')
 
 
 def analyze_job(job: JobListing) -> JobAnalysis | None:
@@ -90,7 +119,6 @@ def analyze_job(job: JobListing) -> JobAnalysis | None:
     cached = _load_analysis_cache(job, system_prompt)
     if cached is not None:
         print('      (cached)')
-        cached.overall_score = compute_overall_score(cached)
         return cached
 
     content = f"""Analyze this job listing for the candidate:
@@ -100,6 +128,7 @@ def analyze_job(job: JobListing) -> JobAnalysis | None:
 Location: {job.location or 'Not specified'}
 Salary: {job.salary or 'Not specified'}
 Seniority Level: {', '.join(job.seniority) if job.seniority else 'Not specified'}
+Minimum Required Experience: {f'{job.minimum_years_experience}+ years' if job.minimum_years_experience is not None else 'Not extracted'}
 Company Size: {job.company_size or 'Not specified'}
 Industries: {', '.join(job.industries) if job.industries else 'Not specified'}
 Tech Stack: {', '.join(job.tech_stack) if job.tech_stack else 'Not specified'}
@@ -127,7 +156,7 @@ Date Posted: {job.date_added or 'Not specified'}
         if not response.text:
             raise ValueError('Empty response from model')
         raw = _RawJobAnalysis.model_validate_json(response.text)
-        result = JobAnalysis(**raw.model_dump(), overall_score=compute_overall_score(raw))
+        result = build_job_analysis(raw, job)
         _save_analysis_cache(job, system_prompt, result)
         return result
     except Exception as e:

@@ -25,7 +25,7 @@ dependencies = [
 where = ["src"]
 
 [tool.setuptools]
-py-modules = ["analyzer", "build_ui", "db", "models", "resume_optimizer"]
+py-modules = ["analyzer", "build_ui", "db", "job_quality", "models", "resume_optimizer"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -4,6 +4,8 @@ RESUME.md
 CANDIDATE_EVIDENCE.md
 results.json
 results.html
+scraped_jobs.json
+extraction_audit.json
 cache/
 __pycache__/
 *.pyc

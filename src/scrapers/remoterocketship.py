@@ -2,8 +2,13 @@ import os
 import time
 from bs4 import Tag
 from dotenv import load_dotenv
-from models import JobListing
-from scrapers.base import fetch_soup, load_detail_cache, save_detail_cache
+
+try:
+    from ..models import JobListing
+    from .base import fetch_soup, load_detail_cache, save_detail_cache
+except ImportError:
+    from models import JobListing
+    from scrapers.base import fetch_soup, load_detail_cache, save_detail_cache
 
 load_dotenv()
 

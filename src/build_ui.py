@@ -20,6 +20,8 @@ def rec_class(rec: str) -> str:
     r = rec.lower()
     if 'strong' in r:
         return 'rec-strong'
+    if r == 'stretch apply':
+        return 'rec-stretch'
     if r == 'apply':
         return 'rec-apply'
     if r == 'consider':
@@ -87,7 +89,15 @@ def render_card(entry: dict, rank: int) -> str:
     team_s = a['team_assessment']['score']
     work_s = a['work_impact']['score']
     loc_s = a['location_fit']['score']
-    cand_s = a['candidate_fit']['score']
+    technical_s = a['candidate_fit']['score']
+    evaluator_screening_s = a['candidate_fit'].get('screening_score')
+    screening_s = a.get('calibrated_screening_score')
+    if screening_s is None:
+        screening_s = evaluator_screening_s if evaluator_screening_s is not None else technical_s
+    screening_calibration = ''
+    if evaluator_screening_s is not None and evaluator_screening_s != screening_s:
+        screening_calibration = f' Evaluator estimate before title/experience calibration: {evaluator_screening_s:.1f}.'
+    opportunity_s = a.get('opportunity_score', a['overall_score'])
     loc_works = str(a['location_fit']['works']).lower()
 
     job_url = escape(job.get('url', ''))
@@ -101,11 +111,13 @@ def render_card(entry: dict, rank: int) -> str:
      data-team="{team_s}"
      data-work="{work_s}"
      data-location="{loc_s}"
-     data-candidate="{cand_s}"
+     data-opportunity="{opportunity_s}"
+     data-technical="{technical_s}"
+     data-screening="{screening_s}"
      data-loc-works="{loc_works}">
   <div class="card-header" onclick="toggleCard(this)">
     <div class="rank">#{rank}</div>
-    <div class="score-badge {sc}">{a['overall_score']:.1f}</div>
+    <div class="score-badge {sc}" title="Application priority">{a['overall_score']:.1f}</div>
     <div class="card-title-block">
       <div class="job-title">{escape(job['title'])}</div>
       <div class="company">{escape(job['company'])}</div>
@@ -153,8 +165,19 @@ def render_card(entry: dict, rank: int) -> str:
         <p>{escape(a['location_fit']['reasoning'])}</p>
       </div>
       <div class="section">
-        <div class="section-label">Candidate fit <span class="sub-score {score_class(a['candidate_fit']['score'])}">{a['candidate_fit']['score']:.1f}</span></div>
+        <div class="section-label">Technical match <span class="sub-score {score_class(technical_s)}">{technical_s:.1f}</span></div>
         <p>{escape(a['candidate_fit']['reasoning'])}</p>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <div class="section-label">Opportunity fit <span class="sub-score {score_class(opportunity_s)}">{opportunity_s:.1f}</span></div>
+        <p>Role quality based on team, substantive work, and location.</p>
+      </div>
+      <div class="section">
+        <div class="section-label">CV screening fit <span class="sub-score {score_class(screening_s)}">{screening_s:.1f}</span></div>
+        <p>{escape(a['candidate_fit'].get('screening_reasoning') or a['candidate_fit']['reasoning'])}{screening_calibration}</p>
       </div>
     </div>
 
@@ -180,6 +203,7 @@ def build(data: list[dict]) -> str:
     total = len(data)
     strong = sum(1 for d in data if 'strong' in d['analysis']['recommendation'].lower())
     apply_ = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'apply')
+    stretch = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'stretch apply')
     consider = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'consider')
     skip = sum(1 for d in data if d['analysis']['recommendation'].lower() == 'skip')
     avg = sum(d['analysis']['overall_score'] for d in data) / total if total else 0
@@ -265,6 +289,7 @@ def build(data: list[dict]) -> str:
   .rec-badge {{ font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; white-space: nowrap; letter-spacing: 0.04em; }}
   .rec-strong  {{ background: #14532d; color: #4ade80; }}
   .rec-apply   {{ background: #1e3a5f; color: #60a5fa; }}
+  .rec-stretch {{ background: #312e81; color: #a5b4fc; }}
   .rec-consider{{ background: #451a03; color: #fbbf24; }}
   .rec-skip    {{ background: #1c1c1c; color: #6b7280; }}
 
@@ -365,9 +390,10 @@ def build(data: list[dict]) -> str:
   <div class="stats">
     <div class="stat"><strong style="color:#4ade80">{strong}</strong> Strong Apply</div>
     <div class="stat"><strong style="color:#60a5fa">{apply_}</strong> Apply</div>
+    <div class="stat"><strong style="color:#a5b4fc">{stretch}</strong> Stretch Apply</div>
     <div class="stat"><strong style="color:#fbbf24">{consider}</strong> Consider</div>
     <div class="stat"><strong style="color:#6b7280">{skip}</strong> Skip</div>
-    <div class="stat"><strong>{avg:.1f}/10</strong> Avg Score</div>
+    <div class="stat"><strong>{avg:.1f}/10</strong> Avg Priority</div>
   </div>
 
   <div class="controls">
@@ -376,36 +402,20 @@ def build(data: list[dict]) -> str:
       <option value="">All recommendations</option>
       <option value="strong apply">Strong Apply</option>
       <option value="apply">Apply</option>
+      <option value="stretch apply">Stretch Apply</option>
       <option value="consider">Consider</option>
       <option value="skip">Skip</option>
+    </select>
+    <label for="sort-score">Rank by:</label>
+    <select id="sort-score" onchange="rerank()">
+      <option value="score">Application priority</option>
+      <option value="opportunity">Opportunity fit</option>
+      <option value="screening">CV screening fit</option>
+      <option value="technical">Technical match</option>
     </select>
     <button onclick="expandAll()">Expand all</button>
     <button onclick="collapseAll()">Collapse all</button>
     <a href="/applications" class="tracker-link">Applications tracker →</a>
-  </div>
-
-  <div class="weight-controls">
-    <div class="weight-label">Score weights</div>
-    <div class="weight-row">
-      <span class="weight-name">Team</span>
-      <input type="range" id="w-team" min="0" max="100" value="40" oninput="reweight()">
-      <span class="weight-pct" id="pct-team">40%</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-name">Work impact</span>
-      <input type="range" id="w-work" min="0" max="100" value="25" oninput="reweight()">
-      <span class="weight-pct" id="pct-work">25%</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-name">Location</span>
-      <input type="range" id="w-location" min="0" max="100" value="20" oninput="reweight()">
-      <span class="weight-pct" id="pct-location">20%</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-name">Candidate fit</span>
-      <input type="range" id="w-candidate" min="0" max="100" value="15" oninput="reweight()">
-      <span class="weight-pct" id="pct-candidate">15%</span>
-    </div>
   </div>
 
   <div class="cards" id="cards">
@@ -472,34 +482,27 @@ function applyFilters() {{
 
 function scoreClass(s) {{ return s >= 7 ? 'good' : s >= 5 ? 'mid' : 'bad'; }}
 
-function reweight() {{
-  const wTeam = +document.getElementById('w-team').value;
-  const wWork = +document.getElementById('w-work').value;
-  const wLoc  = +document.getElementById('w-location').value;
-  const wCand = +document.getElementById('w-candidate').value;
-  const total = wTeam + wWork + wLoc + wCand || 1;
-
-  document.getElementById('pct-team').textContent      = Math.round(wTeam / total * 100) + '%';
-  document.getElementById('pct-work').textContent      = Math.round(wWork / total * 100) + '%';
-  document.getElementById('pct-location').textContent  = Math.round(wLoc  / total * 100) + '%';
-  document.getElementById('pct-candidate').textContent = Math.round(wCand / total * 100) + '%';
-
-  document.querySelectorAll('.card').forEach(card => {{
-    const score0 = (wTeam * +card.dataset.team + wWork * +card.dataset.work +
-                    wLoc  * +card.dataset.location + wCand * +card.dataset.candidate) / total;
-    const score  = card.dataset.locWorks === 'true' ? score0 : -Math.abs(score0);
-    const s      = Math.round(score * 10) / 10;
-    card.dataset.score = s;
-    const cls = scoreClass(s);
+function rerank() {{
+  const field = document.getElementById('sort-score').value;
+  const labels = {{
+    score: 'Application priority',
+    opportunity: 'Opportunity fit',
+    screening: 'CV screening fit',
+    technical: 'Technical match',
+  }};
+  const container = document.getElementById('cards');
+  const cards = Array.from(container.querySelectorAll('.card'));
+  cards.forEach(card => {{
+    const score = +card.dataset[field];
+    const cls = scoreClass(score);
     const badge = card.querySelector('.score-badge');
-    badge.textContent = s.toFixed(1);
+    badge.textContent = score.toFixed(1);
+    badge.title = labels[field];
     badge.className = 'score-badge ' + cls;
     card.className = card.className.replace(/\b(good|mid|bad)\b/g, cls);
   }});
-
-  const container = document.getElementById('cards');
-  Array.from(container.querySelectorAll('.card'))
-    .sort((a, b) => +b.dataset.score - +a.dataset.score)
+  cards
+    .sort((a, b) => +b.dataset[field] - +a.dataset[field])
     .forEach((c, i) => {{ c.querySelector('.rank').textContent = '#' + (i + 1); container.appendChild(c); }});
 }}
 

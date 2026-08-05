@@ -5,8 +5,10 @@ Scrapes ML/AI job listings from LinkedIn, Stepstone, and RemoteRocketship, score
 ## Features
 
 - Playwright-based scrapers with persistent login sessions and detail-page caching
-- Gemini LLM scoring across four dimensions: team quality, work impact, location fit, candidate fit
-- Results UI with live score reweighting via sliders
+- Gemini assessment of team quality, work impact, location, technical match, and realistic CV screening fit
+- Stretch-aware deterministic recommendations: senior roles can be stretches; lead/staff/principal/head/director roles are excluded
+- Results UI with separate application-priority, opportunity-fit, screening-fit, and technical-match rankings
+- Extraction quality gate with seniority/experience normalization and a per-run `extraction_audit.json`
 - Application tracker: status pipeline, event log, notes, next-step scheduling
 - On-demand resume tailoring and cover letter generation per job
 
@@ -39,7 +41,14 @@ Opens a browser window for each site. Log in manually, then press Enter. Session
 python scrape.py [--pages N] [--sources linkedin stepstone ...]
 ```
 
-Scrapes all enabled sources, scores every listing with Gemini, and writes `results.json` and `results.html`.
+Scrapes all enabled sources, quarantines malformed extractions, scores every accepted listing with Gemini, and writes `extraction_audit.json`, `results.json`, and `results.html`.
+
+To inspect extraction before spending model calls, split the run:
+
+```bash
+python scrape.py --pages 1 --scrape-only
+python scrape.py --input scraped_jobs.json
+```
 
 ### 3. Start the app server
 
@@ -58,6 +67,7 @@ Opens at `http://localhost:5000`.
 | --- | --- |
 | `PROFILE.md` | Candidate profile used by the LLM scorer |
 | `RESUME.md` | Full CV used for tailored About/cover letter generation |
+| `CANDIDATE_EVIDENCE.md` | Evidence/status guardrails used by scoring and application generation |
 | `src/scrapers/__init__.py` | Enable/disable sources and set search URLs |
 
 ## Project structure

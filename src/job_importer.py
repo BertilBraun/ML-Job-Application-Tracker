@@ -10,6 +10,7 @@ from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
+from .job_quality import audit_job_listing, normalize_job_listing
 from .models import JobListing
 from .resume_optimizer import _get_model_name, GEMINI_PROVIDER
 
@@ -99,7 +100,12 @@ def parse_job_listing_from_markdown(page: ImportedJobPage) -> JobListing:
     job = JobListing.model_validate_json(response.text)
     if not job.url:
         job.url = page.final_url or page.url
-    return job
+    normalized = normalize_job_listing(job)
+    audit = audit_job_listing('manual_import', normalized)
+    if not audit.accepted:
+        reasons = '; '.join(issue.detail for issue in audit.issues)
+        raise ValueError(f'Extracted job listing failed quality checks: {reasons}')
+    return normalized
 
 
 def import_job_from_url(url: str) -> tuple[JobListing, ImportedJobPage]:

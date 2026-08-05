@@ -1,8 +1,14 @@
 import os
 from dotenv import load_dotenv
-from models import JobListing
-from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
-from scrapers.browser import get_context, human_delay, wait_if_blocked
+
+try:
+    from ..models import JobListing
+    from .base import load_detail_cache, save_detail_cache
+    from .browser import get_context, human_delay, wait_if_blocked
+except ImportError:
+    from models import JobListing
+    from scrapers.base import load_detail_cache, save_detail_cache
+    from scrapers.browser import get_context, human_delay, wait_if_blocked
 
 load_dotenv()
 
@@ -150,7 +156,6 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 2) -> list[JobLis
 
                     human_delay(2, 4)
 
-                pause_if_suspicious('LinkedIn', title, company, url, description, location)
                 jobs.append(
                     JobListing(
                         title=title,

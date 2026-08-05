@@ -9,25 +9,25 @@ import sys
 import io
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / 'src'
-sys.path.insert(0, str(SRC))
+from pydantic import TypeAdapter
 
 # Force UTF-8 output on Windows to handle emoji in job data
 if sys.stdout.encoding != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-from scrapers import scrape_all_sources, SOURCE_KEYS
-from analyzer import analyze_job
-from models import JobListing, JobAnalysis
-from build_ui import build as build_ui
+from src.analyzer import analyze_job
+from src.build_ui import build as build_ui
+from src.models import JobAnalysis, JobListing
+from src.scrapers import SOURCE_KEYS, scrape_all_sources
 
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
 BOLD = '\033[1m'
 RESET = '\033[0m'
+JOBS_PATH = Path('scraped_jobs.json')
+JOB_LIST_ADAPTER = TypeAdapter(list[JobListing])
 
 
 def score_color(score: float) -> str:
@@ -42,7 +42,7 @@ def rec_color(rec: str) -> str:
     r = rec.lower()
     if 'strong' in r or r == 'apply':
         return GREEN
-    elif r == 'consider':
+    elif r in {'stretch apply', 'consider'}:
         return YELLOW
     return RED
 
@@ -70,6 +70,12 @@ def print_result(job: JobListing, analysis: JobAnalysis, rank: int) -> None:
         print(f'    Apply:  {job.apply_url}')
 
     print(f'\n  {BOLD}What it is:{RESET} {analysis.job_summary}')
+    print(
+        f'\n  {BOLD}Score split:{RESET} priority {analysis.overall_score:.1f} | '
+        f'opportunity {analysis.opportunity_score:.1f} | '
+        f'technical {analysis.candidate_fit.score:.1f} | '
+        f'CV screening {analysis.calibrated_screening_score:.1f}'
+    )
 
     ta = analysis.team_assessment
     print(f'\n  {BOLD}Team{RESET} ({sc}{ta.score:.1f}/10{RESET}): {ta.reasoning}')
@@ -82,7 +88,17 @@ def print_result(job: JobListing, analysis: JobAnalysis, rank: int) -> None:
     print(f'\n  {BOLD}Location{RESET} [{loc_ok}]: {lf.reasoning}')
 
     cf = analysis.candidate_fit
-    print(f'\n  {BOLD}Candidate fit{RESET} ({sc}{cf.score:.1f}/10{RESET}): {cf.reasoning}')
+    print(f'\n  {BOLD}Technical match{RESET} ({sc}{cf.score:.1f}/10{RESET}): {cf.reasoning}')
+    if cf.screening_reasoning is not None and cf.screening_score is not None:
+        raw_note = (
+            f'; evaluator: {cf.screening_score:.1f}'
+            if cf.screening_score != analysis.calibrated_screening_score
+            else ''
+        )
+        print(
+            f'\n  {BOLD}CV screening fit{RESET} '
+            f'({analysis.calibrated_screening_score:.1f}/10{raw_note}): {cf.screening_reasoning}'
+        )
 
     if cf.strengths:
         print(f'\n  {GREEN}Strengths:{RESET}')
@@ -103,6 +119,14 @@ def print_result(job: JobListing, analysis: JobAnalysis, rank: int) -> None:
             print(f'    ⚠ {c}')
 
 
+def write_scraped_jobs(jobs: list[JobListing], path: Path = JOBS_PATH) -> None:
+    path.write_bytes(JOB_LIST_ADAPTER.dump_json(jobs, indent=2))
+
+
+def load_scraped_jobs(path: Path) -> list[JobListing]:
+    return JOB_LIST_ADAPTER.validate_json(path.read_bytes())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Scrape and analyze job listings')
     parser.add_argument('--pages', type=int, default=20, metavar='N', help='pages per source (default: 20)')
@@ -113,7 +137,12 @@ def main() -> None:
         metavar='SOURCE',
         help=f'sources to scrape (default: all enabled); choices: {", ".join(SOURCE_KEYS)}',
     )
+    parser.add_argument('--scrape-only', action='store_true', help='scrape and validate listings without LLM analysis')
+    parser.add_argument('--input', type=Path, help='analyze a previously validated scraped_jobs.json file')
     args = parser.parse_args()
+
+    if args.scrape_only and args.input is not None:
+        parser.error('--scrape-only and --input cannot be used together')
 
     print(f'{BOLD}Job Listing Scraper & LLM Analyzer{RESET}')
     if args.sources:
@@ -121,11 +150,21 @@ def main() -> None:
     else:
         print(f'Sources: all enabled | Pages: {args.pages}')
 
-    jobs = scrape_all_sources(max_pages=args.pages, only=args.sources)
+    if args.input is not None:
+        jobs = load_scraped_jobs(args.input)
+        print(f'Loaded {len(jobs)} validated listing(s) from {args.input}')
+    else:
+        jobs = scrape_all_sources(max_pages=args.pages, only=args.sources)
+        write_scraped_jobs(jobs)
+        print(f'Validated listings saved to {JOBS_PATH}')
 
     if not jobs:
         print('\nNo jobs found. The site may require login for full listings.')
         print('Try fetching page 1 only — the first 2-3 listings are usually free.')
+        return
+
+    if args.scrape_only:
+        print('\nScrape-only run complete; no LLM analysis was started.')
         return
 
     print(f'\n{BOLD}Found {len(jobs)} job(s). Running analysis...{RESET}')

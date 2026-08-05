@@ -1,6 +1,12 @@
 from __future__ import annotations
+
+import math
+import re
+from dataclasses import dataclass
+from enum import Enum
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal, Optional
 
 
 def _normalize_escaped_newlines(text: str) -> str:
@@ -11,19 +17,20 @@ class JobListing(BaseModel):
     title: str
     company: str
     url: str
-    apply_url: Optional[str] = None
+    apply_url: str | None = None
     location: str = ''
-    salary: Optional[str] = None
+    salary: str | None = None
     seniority: list[str] = Field(default_factory=list)
     tech_stack: list[str] = Field(default_factory=list)
-    company_size: Optional[str] = None
+    company_size: str | None = None
     industries: list[str] = Field(default_factory=list)
-    date_added: Optional[str] = None
+    date_added: str | None = None
     summary: str = ''
     description: str = ''
     requirements: str = ''
+    minimum_years_experience: int | None = Field(default=None, ge=0)
 
-    def __str__(self):
+    def __str__(self) -> str:
         desc = self.description[:120] + '...' if self.description else ''
         return f'{self.title} at {self.company} in {self.location} — {desc}'
 
@@ -33,7 +40,7 @@ class TeamAssessment(BaseModel):
         description='Are there senior ML/AI colleagues to learn from? Would the candidate be the sole ML expert? Assess the technical strength and size of the ML team.'
     )
     score: float = Field(
-        description='0-10: 10=strong team of ML experts to learn from, 0=sole ML expert or no real ML team'
+        ge=0, le=10, description='0-10: 10=strong team of ML experts to learn from, 0=sole ML expert or no real ML team'
     )
 
 
@@ -42,7 +49,9 @@ class WorkImpact(BaseModel):
         description='Is the work meaningful and beneficial to humanity? Is the ML technically substantive (not shallow API wrappers or prompt engineering)? What does the day-to-day actually look like?'
     )
     score: float = Field(
-        description='0-10: 10=highly impactful and technically deep, 0=harmful/meaningless or trivial wrapper work'
+        ge=0,
+        le=10,
+        description='0-10: 10=highly impactful and technically deep, 0=harmful/meaningless or trivial wrapper work',
     )
 
 
@@ -54,17 +63,39 @@ class LocationFit(BaseModel):
         description="True only if the location/remote setup is genuinely compatible with the candidate's constraints"
     )
     score: float = Field(
-        description='0-10 numeric score for location fit. If works=False use 0-3. If works=True use 7-10 based on how ideal (10=perfect south Germany hybrid or fully remote, 7=technically works but not ideal).'
+        ge=0,
+        le=10,
+        description='0-10 numeric score for location fit. If works=False use 0-3. If works=True use 7-10 based on how ideal (10=perfect south Germany hybrid or fully remote, 7=technically works but not ideal).',
     )
 
 
 class CandidateFit(BaseModel):
     reasoning: str = Field(
-        description='Realistic assessment of technical match and acceptance probability. Be honest — this is weighted less than position quality.'
+        description=(
+            'Assessment of whether the candidate has the technical foundations and demonstrated learning ability '
+            'to contribute to and grow into the work. Keep this separate from CV screening probability.'
+        )
     )
-    score: float = Field(description='0-10: realistic competitiveness for this role')
+    score: float = Field(ge=0, le=10, description='0-10 technical match and growth potential for the work')
+    screening_reasoning: str | None = Field(
+        default=None,
+        description=(
+            'Realistic assessment of whether the current CV would pass initial screening, accounting for '
+            'full-time tenure, title level, explicit years, credentials, and how directly the evidence is visible.'
+        ),
+    )
+    screening_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description='0-10 probability-oriented CV screening fit, separate from technical potential.',
+    )
     strengths: list[str] = Field(description='Specific candidate strengths relevant to this role')
     gaps: list[str] = Field(description='Key gaps: skills or experience the role expects but candidate lacks')
+    hard_blockers: list[str] = Field(
+        default_factory=list,
+        description='Only explicit non-negotiable requirements the candidate clearly does not meet.',
+    )
 
 
 class ApplicationPlan(BaseModel):
@@ -78,12 +109,8 @@ class ApplicationPlan(BaseModel):
         'specific_company',
         'anonymous_recruiter',
         'aggregator_or_job_board',
-    ] = Field(
-        description='Whether the posting provides direct company context or should be treated cautiously.'
-    )
-    main_evidence_thread: str = Field(
-        description='The main project or experience that should anchor the cover letter.'
-    )
+    ] = Field(description='Whether the posting provides direct company context or should be treated cautiously.')
+    main_evidence_thread: str = Field(description='The main project or experience that should anchor the cover letter.')
     supporting_evidence: list[str] = Field(
         default_factory=list,
         description='One to three additional projects, methods, or metrics that support the application.',
@@ -96,12 +123,8 @@ class ApplicationPlan(BaseModel):
         default_factory=list,
         description='Claims the application must avoid because they are unsupported or too strong.',
     )
-    tone_strategy: str = Field(
-        description='Brief description of how the letter should sound for this role.'
-    )
-    cover_letter_angle: str = Field(
-        description='One-sentence strategy for the cover letter.'
-    )
+    tone_strategy: str = Field(description='Brief description of how the letter should sound for this role.')
+    cover_letter_angle: str = Field(description='One-sentence strategy for the cover letter.')
 
 
 class ResumeOptimization(BaseModel):
@@ -169,7 +192,7 @@ class ResumeOptimization(BaseModel):
 
 
 class _RawJobAnalysis(BaseModel):
-    """LLM output schema — no overall_score, that is computed in code."""
+    """LLM output schema without code-derived ranking fields."""
 
     job_summary: str = Field(description='2-3 sentences on what this job actually involves day-to-day')
     team_assessment: TeamAssessment
@@ -179,27 +202,141 @@ class _RawJobAnalysis(BaseModel):
     salary_note: str = Field(
         description='If salary is listed, note it and compare to ~€80k target. If NOT listed, return empty string — do not estimate or speculate.'
     )
-    recommendation: str = Field(
-        description='Exactly one of: strong apply, apply, consider, skip. Based primarily on position fit (team/work/location), not acceptance probability.'
-    )
     key_concerns: list[str] = Field(description='Deal-breakers or significant red flags')
 
 
-DEFAULT_WEIGHTS = {'team': 0.40, 'work': 0.25, 'location': 0.20, 'candidate': 0.15}
+class SeniorityBand(str, Enum):
+    STANDARD = 'standard'
+    SENIOR_STRETCH = 'senior stretch'
+    EXCLUDED = 'excluded title'
 
 
-def compute_overall_score(raw: _RawJobAnalysis, weights: dict[str, float] = DEFAULT_WEIGHTS) -> float:
-    total = sum(weights.values())
+Recommendation = Literal['strong apply', 'apply', 'stretch apply', 'consider', 'skip']
+
+
+@dataclass(frozen=True)
+class OpportunityWeights:
+    team: float = 0.40
+    work: float = 0.25
+    location: float = 0.20
+
+
+DEFAULT_OPPORTUNITY_WEIGHTS = OpportunityWeights()
+
+_EXCLUDED_TITLE_PATTERN = re.compile(r'\b(?:lead|staff|principal|head|director)\b', re.IGNORECASE)
+_SENIOR_TITLE_PATTERN = re.compile(r'\b(?:senior|expert)\b', re.IGNORECASE)
+
+
+def classify_seniority(title: str) -> SeniorityBand:
+    if _EXCLUDED_TITLE_PATTERN.search(title):
+        return SeniorityBand.EXCLUDED
+    if _SENIOR_TITLE_PATTERN.search(title):
+        return SeniorityBand.SENIOR_STRETCH
+    return SeniorityBand.STANDARD
+
+
+def compute_opportunity_score(
+    raw: _RawJobAnalysis,
+    weights: OpportunityWeights = DEFAULT_OPPORTUNITY_WEIGHTS,
+) -> float:
+    total = weights.team + weights.work + weights.location
+    assert total > 0
     score = (
-        weights['team'] * raw.team_assessment.score
-        + weights['work'] * raw.work_impact.score
-        + weights['location'] * raw.location_fit.score
-        + weights['candidate'] * raw.candidate_fit.score
+        weights.team * raw.team_assessment.score
+        + weights.work * raw.work_impact.score
+        + weights.location * raw.location_fit.score
     ) / total
-    if not raw.location_fit.works:
+    return round(score, 2)
+
+
+def _require_screening_score(candidate_fit: CandidateFit) -> float:
+    if candidate_fit.screening_score is None or candidate_fit.screening_reasoning is None:
+        raise ValueError('Fresh analyses must include screening_score and screening_reasoning')
+    return candidate_fit.screening_score
+
+
+def calibrate_screening_score(
+    raw: _RawJobAnalysis,
+    job: JobListing,
+    seniority_band: SeniorityBand,
+) -> float:
+    score = _require_screening_score(raw.candidate_fit)
+    if seniority_band is SeniorityBand.SENIOR_STRETCH:
+        score = min(score, 5.5)
+    if job.minimum_years_experience is not None and job.minimum_years_experience >= 5:
+        score = min(score, 5.0)
+    return score
+
+
+def compute_recommendation(
+    raw: _RawJobAnalysis,
+    opportunity_score: float,
+    seniority_band: SeniorityBand,
+    calibrated_screening_score: float,
+) -> Recommendation:
+    technical_score = raw.candidate_fit.score
+
+    if not raw.location_fit.works or raw.candidate_fit.hard_blockers:
+        return 'skip'
+
+    match seniority_band:
+        case SeniorityBand.EXCLUDED:
+            return 'skip'
+        case SeniorityBand.SENIOR_STRETCH:
+            if opportunity_score >= 7.5 and calibrated_screening_score >= 4.5 and technical_score >= 6.5:
+                return 'stretch apply'
+            if opportunity_score >= 6.0 and calibrated_screening_score >= 4.0:
+                return 'consider'
+            return 'skip'
+        case SeniorityBand.STANDARD:
+            if opportunity_score >= 8.0 and calibrated_screening_score >= 7.0:
+                return 'strong apply'
+            if opportunity_score >= 7.0 and calibrated_screening_score >= 5.5:
+                return 'apply'
+            if opportunity_score >= 8.0 and calibrated_screening_score >= 4.0 and technical_score >= 7.0:
+                return 'stretch apply'
+            if opportunity_score >= 6.0 and calibrated_screening_score >= 4.5:
+                return 'consider'
+            return 'skip'
+
+
+def compute_priority_score(
+    raw: _RawJobAnalysis,
+    opportunity_score: float,
+    seniority_band: SeniorityBand,
+    calibrated_screening_score: float,
+) -> float:
+    score = math.sqrt(opportunity_score * calibrated_screening_score)
+    if not raw.location_fit.works or raw.candidate_fit.hard_blockers or seniority_band is SeniorityBand.EXCLUDED:
         score = -abs(score)
     return round(score, 2)
 
 
 class JobAnalysis(_RawJobAnalysis):
-    overall_score: float = Field(default=0.0, description='Weighted score computed in code, not by the LLM.')
+    opportunity_score: float = Field(default=0.0, description='Role desirability computed in code.')
+    calibrated_screening_score: float = Field(
+        default=0.0,
+        description='CV screening fit after deterministic seniority and experience calibration.',
+    )
+    overall_score: float = Field(default=0.0, description='Application priority computed in code.')
+    seniority_band: SeniorityBand = Field(default=SeniorityBand.STANDARD)
+    recommendation: Recommendation = Field(default='consider')
+
+
+def build_job_analysis(raw: _RawJobAnalysis, job: JobListing) -> JobAnalysis:
+    opportunity_score = compute_opportunity_score(raw)
+    seniority_band = classify_seniority(job.title)
+    calibrated_screening_score = calibrate_screening_score(raw, job, seniority_band)
+    return JobAnalysis(
+        **raw.model_dump(),
+        opportunity_score=opportunity_score,
+        calibrated_screening_score=calibrated_screening_score,
+        overall_score=compute_priority_score(raw, opportunity_score, seniority_band, calibrated_screening_score),
+        seniority_band=seniority_band,
+        recommendation=compute_recommendation(
+            raw,
+            opportunity_score,
+            seniority_band,
+            calibrated_screening_score,
+        ),
+    )

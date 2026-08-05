@@ -166,7 +166,13 @@ def test_optimizer_prompt_prioritizes_specific_project_fit_over_jax_default():
     system_prompt = resume_optimizer._SYSTEM
 
     assert 'GNN traffic control' in system_prompt
+    assert 'LLM-Light - End-to-End LLM Pretraining & Evaluation System' in system_prompt
+    assert 'LLM infrastructure/model-training roles' in system_prompt
     assert 'agentic LLM systems' in system_prompt
+    assert 'responsive conversational voice-system work' in system_prompt
+    assert 'end-of-turn and interruption detection' in system_prompt
+    assert 'arXiv:2607.21831' in system_prompt
+    assert 'not published or peer reviewed' in system_prompt
     assert 'JAX GPU-resident RL' in system_prompt
     assert 'supporting evidence' in system_prompt
 

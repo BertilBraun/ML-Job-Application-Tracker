@@ -1,8 +1,14 @@
 import os
 from dotenv import load_dotenv
-from models import JobListing
-from scrapers.base import load_detail_cache, save_detail_cache
-from scrapers.browser import get_context, human_delay, wait_if_blocked
+
+try:
+    from ..models import JobListing
+    from .base import load_detail_cache, save_detail_cache
+    from .browser import get_context, human_delay, wait_if_blocked
+except ImportError:
+    from models import JobListing
+    from scrapers.base import load_detail_cache, save_detail_cache
+    from scrapers.browser import get_context, human_delay, wait_if_blocked
 
 load_dotenv()
 

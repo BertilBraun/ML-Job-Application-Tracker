@@ -53,8 +53,7 @@ def _get_model_name(provider: str) -> str:
     if provider == OPENAI_PROVIDER:
         return os.getenv('OPENAI_MODEL_NAME', '').strip() or OPENAI_MODEL_NAME
     raise ValueError(
-        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. '
-        f'Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
+        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
     )
 
 
@@ -159,9 +158,10 @@ Requirements:
 Examples:
 
 * RL / autonomy / control: PPO, DAgger, AlphaZero/MCTS, self-play, GNN policies, SUMO/TraCI, JAX, PyTorch, C++.
-* LLM / evaluation / agents: LLM pipelines, fine-tuning, automated evaluation, agent orchestration, observability.
-* LLM infrastructure / performance: JAX, PyTorch, GPU-resident training loops, batched inference, distributed workers, Docker, observability.
+* LLM / evaluation / agents: LLM pipelines, pretraining, fine-tuning, automated evaluation, agent orchestration, observability.
+* LLM infrastructure / performance: PyTorch, GPT/MoE pretraining, DPO, artifact caching, JAX, GPU-resident training loops, batched inference, distributed workers, Docker, observability.
 * Computer vision / multimodal: YOLO, tracking, pose/orientation models, video pipelines, FastAPI, Modal GPU jobs.
+* Conversational voice / speech: synthetic conversational data, small-LLM fine-tuning, structured tool calling, STT/LLM/TTS pipelines, end-of-turn detection, interruption handling, backchannels.
 * General production ML: Python, PyTorch, Docker, FastAPI, ML pipelines, deployment, evaluation, observability, SQL/NoSQL if supported.
 
 ## 3. Project order
@@ -173,14 +173,17 @@ The order should put the most relevant 2-3 projects first and leave less relevan
 Role guidance:
 
 * CV/video/autonomy roles: lead with GybeLock, then JAX GPU-resident RL or AlphaZero depending on performance vs model-training emphasis.
-* Agentic/LLM platform roles: lead with Agentic LLM Systems, then CAS/KIT LLM evaluation or Temporal-Light depending on the role.
-* NLP/LLM evaluation roles: lead with CAS/KIT LLM evaluation/publication, then Agentic LLM Systems.
+* LLM infrastructure/model-training roles: lead with LLM-Light, then CAS/KIT LLM evaluation or GPU-Resident Reinforcement Learning with JAX depending on whether the role emphasizes LLM evaluation or performance engineering.
+* Agentic/LLM platform roles: lead with Agentic LLM Systems, then LLM-Light, CAS/KIT LLM evaluation, or Temporal-Light depending on the role.
+* NLP/LLM evaluation roles: lead with CAS/KIT LLM evaluation/publication or LLM-Light depending on whether the role emphasizes evaluation research or training/evaluation systems.
+* Voice/conversational AI roles: use the responsive conversational voice-system work as the cover-letter evidence anchor; for FlowCV project ordering, lead with Agentic LLM Systems and LLM-Light because the voice work is not yet a standalone FlowCV project.
 * RL/control roles: lead with GNN-Based Traffic Signal Control or AlphaZero depending on whether the role emphasizes control/simulation or self-play/search.
 * Performance/infrastructure roles: lead with GPU-Resident Reinforcement Learning with JAX, then AlphaZero/distributed self-play or agent systems depending on the job.
 
 Canonical FlowCV project names include:
 
 * AlphaZero-Style Chess: General Deep Reinforcement Learning for Board Games
+* LLM-Light - End-to-End LLM Pretraining & Evaluation System
 * GybeLock - Multi-Object Tracking & Video Intelligence System
 * GPU-Resident Reinforcement Learning with JAX
 * Agentic LLM Systems: Durable Coding Runtime & Multi-Agent Orchestration
@@ -203,11 +206,12 @@ Use the project whose problem structure best matches the role:
 * For RL/control/simulation/autonomy roles, usually lead with GNN traffic control if the role emphasizes simulation environments, real-world environments, control, reward design, sample efficiency, policy stability, or deployment.
 * Use AlphaZero/self-play as the main thread only when the role emphasizes self-play, search, games, policy iteration, large-scale RL experiments, or distributed RL.
 * Use JAX GPU-resident RL as the main thread only when the role emphasizes JAX, GPU efficiency, vectorization, training throughput, low-level performance, scalable training, or resource-efficient AI.
-* For LLM infrastructure/fine-tuning/inference roles, usually combine LLM evaluation/thesis/CAS with JAX performance work. Use AlphaZero only as supporting evidence for distributed workloads.
+* For LLM infrastructure/pretraining/post-training/inference roles, lead with LLM-Light. Combine it with LLM evaluation/thesis/CAS when the role emphasizes evaluation or fine-tuning, and with JAX performance work when the role emphasizes efficient training systems. Use AlphaZero only as supporting evidence for distributed workloads.
 * For general production ML roles, usually lead with GybeLock, LLM evaluation pipelines, or agentic LLM systems. Do not lead with RL unless the role asks for RL.
 * For cybersecurity/anomaly/fraud/behavioral analytics roles, do not claim security-domain experience unless present. Use deployed ML systems, data/model pipelines, evaluation, observability, and production integration as transferable evidence.
 * For computer vision/video roles, lead with GybeLock.
 * For agentic AI/platform/orchestration roles, lead with Agentic LLM Systems and support with LLM evaluation/thesis.
+* For voice, speech, turn-taking, or conversational-agent roles, lead with the responsive conversational voice-system work: synthetic conversational data, small-LLM fine-tuning, hidden background tool calls, end-of-turn and interruption detection, and backchannel modeling. Do not claim the current turn-taking model or latency target is finished.
 
 ## 5. Cover letter
 
@@ -358,6 +362,8 @@ Use concrete evidence where relevant:
 * multi-object tracking
 * automated LLM evaluation
 * ACL 2025 Workshop publication
+* arXiv:2607.21831, A Graph-Based Control Interface for Traffic Signals on Heterogeneous Road Networks
+* LLM-Light technical report on artifact-addressed execution (preparing for publication; not published or peer reviewed)
 
 Use technically precise objects:
 
@@ -525,8 +531,7 @@ def _generate_resume_optimization(content: str) -> ResumeOptimization:
     if provider == OPENAI_PROVIDER:
         return _generate_with_openai(content)
     raise ValueError(
-        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. '
-        f'Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
+        f'Unsupported RESUME_OPTIMIZER_PROVIDER={provider!r}. Use {GEMINI_PROVIDER!r} or {OPENAI_PROVIDER!r}.'
     )
 
 

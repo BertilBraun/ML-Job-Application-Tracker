@@ -1,9 +1,16 @@
 import os
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from dotenv import load_dotenv
-from models import JobListing
-from scrapers.base import load_detail_cache, save_detail_cache, pause_if_suspicious
-from scrapers.browser import get_context, human_delay, wait_if_blocked
+
+try:
+    from ..models import JobListing
+    from .base import load_detail_cache, save_detail_cache
+    from .browser import get_context, human_delay, wait_if_blocked
+except ImportError:
+    from models import JobListing
+    from scrapers.base import load_detail_cache, save_detail_cache
+    from scrapers.browser import get_context, human_delay, wait_if_blocked
 
 load_dotenv()
 
@@ -71,6 +78,15 @@ def _try_get(locator, selector: str) -> str | None:
     return None
 
 
+def _page_url(search_url: str, page_number: int) -> str:
+    if page_number == 1:
+        return search_url
+    parts = urlsplit(search_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query['page'] = str(page_number)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
 def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobListing]:
     pw, ctx = get_context()
     page = ctx.new_page()
@@ -81,7 +97,7 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobLis
         _ensure_logged_in(page)
 
         for p in range(1, max_pages + 1):
-            url = search_url if p == 1 else f'{search_url}&page={p}'
+            url = _page_url(search_url, p)
             page.goto(url, wait_until='domcontentloaded')
             wait_if_blocked(page, BLOCK)
             human_delay(2, 4)
@@ -111,7 +127,8 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobLis
                             'date_added': _try_get(card, "[data-at='job-item-timeago']"),
                         }
                     )
-                except Exception:
+                except Exception as error:
+                    print(f'     !! Card parse error: {error}')
                     continue
 
             for cd in card_data:
@@ -140,9 +157,6 @@ def scrape_jobs(search_url: str = SEARCH_URL, max_pages: int = 3) -> list[JobLis
                     }
                     save_detail_cache(cd['url'], details)
 
-                pause_if_suspicious(
-                    'Stepstone', cd['title'], cd['company'], cd['url'], details.get('description', ''), cd['location']
-                )
                 jobs.append(
                     JobListing(
                         title=cd['title'],
