@@ -65,6 +65,7 @@ _EXPERIENCE_PATTERN = re.compile(
     r'(?P<minimum>\d{1,2})(?:\s*[-–—]\s*\d{1,2})?\s*\+?\s*(?:years?|yrs?|jahre[n]?)\b',
     re.IGNORECASE,
 )
+_MAX_PLAUSIBLE_EXPERIENCE_YEARS = 15
 _BLOCK_PAGE_PATTERN = re.compile(
     r'\b(?:access denied|security check|captcha|page not found|job (?:is )?no longer available|sign in to view this job)\b',
     re.IGNORECASE,
@@ -89,7 +90,11 @@ _SENIORITY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 def extract_minimum_years_experience(job: JobListing) -> int | None:
     text = '\n'.join((job.title, job.description, job.requirements))
-    minimums = [int(match.group('minimum')) for match in _EXPERIENCE_PATTERN.finditer(text)]
+    minimums = [
+        minimum
+        for match in _EXPERIENCE_PATTERN.finditer(text)
+        if (minimum := int(match.group('minimum'))) <= _MAX_PLAUSIBLE_EXPERIENCE_YEARS
+    ]
     return max(minimums) if minimums else None
 
 

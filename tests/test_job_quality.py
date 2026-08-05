@@ -43,6 +43,18 @@ def test_experience_range_uses_lower_bound() -> None:
     assert normalized.seniority == ['Mid-level']
 
 
+def test_company_history_is_not_treated_as_candidate_experience() -> None:
+    normalized = normalize_job_listing(
+        _job(
+            title='AI Engineer',
+            description='Seit über 80 Jahren stehen wir für technische Exzellenz. ' * 8,
+            requirements='',
+        )
+    )
+
+    assert normalized.minimum_years_experience is None
+
+
 def test_audit_quarantines_short_and_blocked_content() -> None:
     short = normalize_job_listing(_job(description='Access denied', requirements=''))
 
