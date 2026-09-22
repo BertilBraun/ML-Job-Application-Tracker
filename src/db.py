@@ -1,7 +1,7 @@
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
 DB_PATH = Path(__file__).parent.parent / 'applications.db'
 
@@ -59,12 +59,12 @@ def init_db() -> None:
         if 'language' not in columns:
             conn.execute("ALTER TABLE applications ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")
         if 'technical_skills' not in columns:
-            conn.execute("ALTER TABLE applications ADD COLUMN technical_skills TEXT")
+            conn.execute('ALTER TABLE applications ADD COLUMN technical_skills TEXT')
         if 'project_order' not in columns:
-            conn.execute("ALTER TABLE applications ADD COLUMN project_order TEXT")
+            conn.execute('ALTER TABLE applications ADD COLUMN project_order TEXT')
         if 'job_payload' not in columns:
-            conn.execute("ALTER TABLE applications ADD COLUMN job_payload TEXT")
+            conn.execute('ALTER TABLE applications ADD COLUMN job_payload TEXT')
         if 'analysis_payload' not in columns:
-            conn.execute("ALTER TABLE applications ADD COLUMN analysis_payload TEXT")
+            conn.execute('ALTER TABLE applications ADD COLUMN analysis_payload TEXT')
         if 'materials_status' not in columns:
             conn.execute("ALTER TABLE applications ADD COLUMN materials_status TEXT NOT NULL DEFAULT ''")

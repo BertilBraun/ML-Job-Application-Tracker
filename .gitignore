@@ -15,3 +15,5 @@ docs/superpowers/plans/
 debug_blocked_*.png
 applications.db
 *.egg-info/
+Interview/
+tmp/

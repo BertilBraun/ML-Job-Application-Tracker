@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 
-import src.resume_optimizer as resume_optimizer
+from src import resume_optimizer
 from src.models import (
     ApplicationPlan,
     CandidateFit,
@@ -162,18 +162,25 @@ def test_cover_letter_prompt_requires_grounded_public_framing():
     assert 'do not pretend company-specific knowledge' in system_prompt
 
 
-def test_optimizer_prompt_prioritizes_specific_project_fit_over_jax_default():
+def test_optimizer_prompt_prioritizes_current_project_fit():
     system_prompt = resume_optimizer._SYSTEM
 
     assert 'GNN traffic control' in system_prompt
     assert 'LLM-Light - End-to-End LLM Pretraining & Evaluation System' in system_prompt
+    assert 'Voice-Light - Low-Latency Conversational Voice AI' in system_prompt
+    assert 'AlphaZero-Style Chess & Go: Scalable Deep Reinforcement Learning' in system_prompt
     assert 'LLM infrastructure/model-training roles' in system_prompt
     assert 'agentic LLM systems' in system_prompt
-    assert 'responsive conversational voice-system work' in system_prompt
-    assert 'end-of-turn and interruption detection' in system_prompt
+    assert 'causal turn-taking' in system_prompt
+    assert 'interruption and backchannel handling' in system_prompt
     assert 'arXiv:2607.21831' in system_prompt
-    assert 'not published or peer reviewed' in system_prompt
-    assert 'JAX GPU-resident RL' in system_prompt
+    assert 'arXiv:2609.20995' in system_prompt
+    assert 'arXiv:2609.24492' in system_prompt
+    assert '8+ years of hands-on software development' in system_prompt
+    assert 'Do not turn it into a claim of 8+ years of full-time professional experience' in system_prompt
+    assert 'public technical report' in system_prompt
+    assert 'not peer reviewed' in system_prompt
+    assert 'JAX GPU-resident RL' not in system_prompt
     assert 'supporting evidence' in system_prompt
 
 

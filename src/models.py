@@ -301,13 +301,12 @@ def compute_recommendation(
 
 
 def compute_priority_score(
-    raw: _RawJobAnalysis,
     opportunity_score: float,
-    seniority_band: SeniorityBand,
     calibrated_screening_score: float,
+    recommendation: Recommendation,
 ) -> float:
     score = math.sqrt(opportunity_score * calibrated_screening_score)
-    if not raw.location_fit.works or raw.candidate_fit.hard_blockers or seniority_band is SeniorityBand.EXCLUDED:
+    if recommendation == 'skip':
         score = -abs(score)
     return round(score, 2)
 
@@ -327,16 +326,21 @@ def build_job_analysis(raw: _RawJobAnalysis, job: JobListing) -> JobAnalysis:
     opportunity_score = compute_opportunity_score(raw)
     seniority_band = classify_seniority(job.title)
     calibrated_screening_score = calibrate_screening_score(raw, job, seniority_band)
+    recommendation = compute_recommendation(
+        raw,
+        opportunity_score,
+        seniority_band,
+        calibrated_screening_score,
+    )
     return JobAnalysis(
         **raw.model_dump(),
         opportunity_score=opportunity_score,
         calibrated_screening_score=calibrated_screening_score,
-        overall_score=compute_priority_score(raw, opportunity_score, seniority_band, calibrated_screening_score),
-        seniority_band=seniority_band,
-        recommendation=compute_recommendation(
-            raw,
+        overall_score=compute_priority_score(
             opportunity_score,
-            seniority_band,
             calibrated_screening_score,
+            recommendation,
         ),
+        seniority_band=seniority_band,
+        recommendation=recommendation,
     )

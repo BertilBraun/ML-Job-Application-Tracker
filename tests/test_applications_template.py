@@ -10,8 +10,8 @@ def test_applications_template_exposes_tailored_cv_download_button():
     assert 'header-pdf-btn-${a.id}' in template
     assert 'downloadPdfs' in template
     assert 'downloadTailoredCv' in template
-    assert "/api/applications/${id}/cv.pdf" in template
-    assert "/api/applications/${id}/cover-letter.pdf" in template
+    assert '/api/applications/${id}/cv.pdf' in template
+    assert '/api/applications/${id}/cover-letter.pdf' in template
 
 
 def test_applications_template_auto_expands_open_query_card():
@@ -48,7 +48,7 @@ def test_applications_template_exposes_job_url_import():
     assert 'importJobUrl' in template
     assert '/api/applications/import-url' in template
     assert 'import-status-list' in template
-    assert 'input.value = \'\'' in template
+    assert "input.value = ''" in template
 
 
 def test_applications_template_shows_material_generation_status():

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from src.models import (
     CandidateFit,
     JobListing,
@@ -138,6 +137,22 @@ def test_location_and_hard_requirements_remain_blockers() -> None:
     assert location_blocked.overall_score < 0
     assert requirement_blocked.recommendation == 'skip'
     assert requirement_blocked.overall_score < 0
+
+
+def test_standard_skip_is_negated_even_without_a_hard_blocker() -> None:
+    raw = _raw_analysis(screening_score=9.0, technical_score=6.0).model_copy(
+        update={
+            'team_assessment': TeamAssessment(reasoning='Weak learning environment.', score=2.0),
+            'work_impact': WorkImpact(reasoning='Shallow integration work.', score=2.0),
+            'location_fit': LocationFit(reasoning='Location works.', works=True, score=7.0),
+        }
+    )
+    job = JobListing(title='AI Engineer', company='Example', url='https://example.com/job')
+
+    analysis = build_job_analysis(raw, job)
+
+    assert analysis.recommendation == 'skip'
+    assert analysis.overall_score < 0
 
 
 def test_fresh_analysis_requires_explicit_screening_assessment() -> None:

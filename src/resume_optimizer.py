@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from openai import OpenAI
 
-from .models import JobListing, JobAnalysis, ResumeOptimization
+from .models import JobAnalysis, JobListing, ResumeOptimization
 
 load_dotenv()
 
@@ -119,11 +119,12 @@ The About section must not:
 * become a completely new profile,
 * use the phrase “I like hard problems.”
 
+Preserve the base CV's distinction between 8+ years of hands-on software development across self-directed engineering, academic research, and industry and the shorter formal employment history. Do not turn it into a claim of 8+ years of full-time professional experience or use it to imply seniority unsupported by the evidence map.
+
 For stretch-fit roles, prefer broader truthful positioning such as:
 
 * “performance-oriented ML systems”
 * “training and evaluation pipelines”
-* “hands-on JAX experience”
 * “distributed workloads”
 * “deployed ML pipelines”
 * “LLM evaluation pipelines”
@@ -157,11 +158,11 @@ Requirements:
 
 Examples:
 
-* RL / autonomy / control: PPO, DAgger, AlphaZero/MCTS, self-play, GNN policies, SUMO/TraCI, JAX, PyTorch, C++.
+* RL / autonomy / control: PPO, AlphaZero/MCTS, self-play, GNN policies, SUMO/TraCI, PyTorch, C++.
 * LLM / evaluation / agents: LLM pipelines, pretraining, fine-tuning, automated evaluation, agent orchestration, observability.
-* LLM infrastructure / performance: PyTorch, GPT/MoE pretraining, DPO, artifact caching, JAX, GPU-resident training loops, batched inference, distributed workers, Docker, observability.
+* LLM infrastructure / performance: PyTorch, GPT/MoE pretraining, DPO, artifact caching, batched inference, distributed workers, Docker, observability.
 * Computer vision / multimodal: YOLO, tracking, pose/orientation models, video pipelines, FastAPI, Modal GPU jobs.
-* Conversational voice / speech: synthetic conversational data, small-LLM fine-tuning, structured tool calling, STT/LLM/TTS pipelines, end-of-turn detection, interruption handling, backchannels.
+* Conversational voice / speech: synthetic conversational data, small-LLM fine-tuning, structured tool calling, streaming ASR/LLM/TTS, causal turn-taking, interruption handling, backchannels.
 * General production ML: Python, PyTorch, Docker, FastAPI, ML pipelines, deployment, evaluation, observability, SQL/NoSQL if supported.
 
 ## 3. Project order
@@ -172,25 +173,21 @@ The order should put the most relevant 2-3 projects first and leave less relevan
 
 Role guidance:
 
-* CV/video/autonomy roles: lead with GybeLock, then JAX GPU-resident RL or AlphaZero depending on performance vs model-training emphasis.
-* LLM infrastructure/model-training roles: lead with LLM-Light, then CAS/KIT LLM evaluation or GPU-Resident Reinforcement Learning with JAX depending on whether the role emphasizes LLM evaluation or performance engineering.
-* Agentic/LLM platform roles: lead with Agentic LLM Systems, then LLM-Light, CAS/KIT LLM evaluation, or Temporal-Light depending on the role.
+* CV/video roles: lead with GybeLock, then Voice-Light for multimodal or deployed real-time systems, or AlphaZero for performance-oriented model engineering.
+* LLM infrastructure/model-training roles: lead with LLM-Light, then Voice-Light, Agentic LLM Systems, or AlphaZero depending on whether the role emphasizes adaptation, orchestration, or distributed training.
+* Agentic/LLM platform roles: lead with Agentic LLM Systems, then LLM-Light or Voice-Light depending on whether the role emphasizes durable workflows or deployed tool use.
 * NLP/LLM evaluation roles: lead with CAS/KIT LLM evaluation/publication or LLM-Light depending on whether the role emphasizes evaluation research or training/evaluation systems.
-* Voice/conversational AI roles: use the responsive conversational voice-system work as the cover-letter evidence anchor; for FlowCV project ordering, lead with Agentic LLM Systems and LLM-Light because the voice work is not yet a standalone FlowCV project.
+* Voice/conversational AI roles: lead with Voice-Light, then LLM-Light or Agentic LLM Systems for training infrastructure or orchestration support.
 * RL/control roles: lead with GNN-Based Traffic Signal Control or AlphaZero depending on whether the role emphasizes control/simulation or self-play/search.
-* Performance/infrastructure roles: lead with GPU-Resident Reinforcement Learning with JAX, then AlphaZero/distributed self-play or agent systems depending on the job.
+* Performance/infrastructure roles: lead with AlphaZero for native search, batched inference, and distributed training; use LLM-Light or Agentic LLM Systems for experiment infrastructure or durable services.
 
 Canonical FlowCV project names include:
 
-* AlphaZero-Style Chess: General Deep Reinforcement Learning for Board Games
+* AlphaZero-Style Chess & Go: Scalable Deep Reinforcement Learning
 * LLM-Light - End-to-End LLM Pretraining & Evaluation System
+* Voice-Light - Low-Latency Conversational Voice AI
 * GybeLock - Multi-Object Tracking & Video Intelligence System
-* GPU-Resident Reinforcement Learning with JAX
 * Agentic LLM Systems: Durable Coding Runtime & Multi-Agent Orchestration
-* CaRL - Reinforcement Learning Racing Agent
-* Advanced Speech Translation Pipeline
-* Symp - Making connecting in real life effortless.
-* Pyro - Collaborative Music Voting App
 * GNN-Based Traffic Signal Control
 
 ## 4. Key bullets
@@ -205,13 +202,12 @@ Use the project whose problem structure best matches the role:
 
 * For RL/control/simulation/autonomy roles, usually lead with GNN traffic control if the role emphasizes simulation environments, real-world environments, control, reward design, sample efficiency, policy stability, or deployment.
 * Use AlphaZero/self-play as the main thread only when the role emphasizes self-play, search, games, policy iteration, large-scale RL experiments, or distributed RL.
-* Use JAX GPU-resident RL as the main thread only when the role emphasizes JAX, GPU efficiency, vectorization, training throughput, low-level performance, scalable training, or resource-efficient AI.
-* For LLM infrastructure/pretraining/post-training/inference roles, lead with LLM-Light. Combine it with LLM evaluation/thesis/CAS when the role emphasizes evaluation or fine-tuning, and with JAX performance work when the role emphasizes efficient training systems. Use AlphaZero only as supporting evidence for distributed workloads.
+* For LLM infrastructure/pretraining/post-training/inference roles, lead with LLM-Light. Combine it with LLM evaluation/thesis/CAS when the role emphasizes evaluation or fine-tuning, with Voice-Light for adaptation and deployment, and with AlphaZero for distributed workloads.
 * For general production ML roles, usually lead with GybeLock, LLM evaluation pipelines, or agentic LLM systems. Do not lead with RL unless the role asks for RL.
 * For cybersecurity/anomaly/fraud/behavioral analytics roles, do not claim security-domain experience unless present. Use deployed ML systems, data/model pipelines, evaluation, observability, and production integration as transferable evidence.
 * For computer vision/video roles, lead with GybeLock.
 * For agentic AI/platform/orchestration roles, lead with Agentic LLM Systems and support with LLM evaluation/thesis.
-* For voice, speech, turn-taking, or conversational-agent roles, lead with the responsive conversational voice-system work: synthetic conversational data, small-LLM fine-tuning, hidden background tool calls, end-of-turn and interruption detection, and backchannel modeling. Do not claim the current turn-taking model or latency target is finished.
+* For voice, speech, turn-taking, or conversational-agent roles, lead with Voice-Light: synthetic conversational data, Qwen fine-tuning, causal turn-taking, structured tools, interruption and backchannel handling, measured live latency, and public deployment.
 
 ## 5. Cover letter
 
@@ -363,7 +359,10 @@ Use concrete evidence where relevant:
 * automated LLM evaluation
 * ACL 2025 Workshop publication
 * arXiv:2607.21831, A Graph-Based Control Interface for Traffic Signals on Heterogeneous Road Networks
-* LLM-Light technical report on artifact-addressed execution (preparing for publication; not published or peer reviewed)
+* arXiv:2609.20995, Voice-Light: A Full-Duplex Cascaded Voice Agent with Causal Turn-Taking and Speculative Generation
+* arXiv:2609.24492, Identity-Consistent Analysis of Long-Shot Windsurfing Video: A Domain-Specific Offline Tracking System
+* LLM-Light public technical report on artifact-addressed execution (arXiv submission pending; not peer reviewed)
+* completed Chess result of 3,167 estimated Stockfish-13-calibrated Elo at 80,000 searches from a three-day, $52 training run; do not invent the unfinished terminal-run result
 
 Use technically precise objects:
 
@@ -409,7 +408,7 @@ def _cache_key(
 
     key_material = '\n'.join(
         [
-            'resume_optimizer_v6_cv_skills_project_order',
+            'resume_optimizer_v7_current_projects_and_evidence',
             _llm_cache_identity(),
             _SYSTEM,
             schema_repr,
@@ -632,6 +631,6 @@ Return only valid JSON matching the provided schema.
 
         return result
 
-    except Exception as e:
-        print(f'    Resume optimization error: {e}')
+    except Exception as error:  # noqa: BLE001 - provider SDKs use incompatible exception hierarchies.
+        print(f'    Resume optimization error: {error}')
         return None

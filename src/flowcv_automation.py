@@ -3,13 +3,12 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
-from playwright.sync_api import Locator
-from playwright.sync_api import Page
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Locator, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
 
 FLOWCV_URL = 'https://app.flowcv.com/resume/content'
 USER_DATA_DIR = Path('user_data') / 'flowcv'
@@ -40,9 +39,7 @@ def validate_about_text(text: str) -> str:
     lower = int(ORIGINAL_ABOUT_LENGTH * 0.75)
     upper = int(ORIGINAL_ABOUT_LENGTH * 1.35)
     if not (lower <= len(clean) <= upper):
-        raise ValueError(
-            f'Tailored About length must stay close to the original ({lower}-{upper} characters)'
-        )
+        raise ValueError(f'Tailored About length must stay close to the original ({lower}-{upper} characters)')
     if clean.startswith(('#', '-', '*')):
         raise ValueError('Tailored About must be prose, not markdown or bullets')
     return clean
@@ -150,16 +147,12 @@ def _wait_for_flowcv_content_page(page: Page) -> None:
     try:
         page.wait_for_url('**/resume/content**', timeout=60000)
     except PlaywrightTimeoutError as exc:
-        raise FlowCVLoginRequired(
-            'FlowCV session is not logged in. Log in once in the opened browser window.'
-        ) from exc
+        raise FlowCVLoginRequired('FlowCV session is not logged in. Log in once in the opened browser window.') from exc
 
     try:
         _about_nav_item(page).wait_for(timeout=60000)
     except PlaywrightTimeoutError as exc:
-        raise FlowCVLoginRequired(
-            'FlowCV content page did not become available after login.'
-        ) from exc
+        raise FlowCVLoginRequired('FlowCV content page did not become available after login.') from exc
 
 
 def _about_nav_item(page: Page) -> Locator:
@@ -171,7 +164,7 @@ def _open_about_editor(page: Page) -> None:
 
     preview = (
         page.locator('.previewHtmlContent')
-        .filter(has_text=re.compile('AI engineer|research background|hard problems', re.I))
+        .filter(has_text=re.compile('AI engineer|research background|hard problems', re.IGNORECASE))
         .first
     )
     if _is_visible(preview, timeout=3000):
@@ -183,7 +176,7 @@ def _open_about_editor(page: Page) -> None:
     if _is_visible(editor, timeout=2000):
         return
 
-    edit_button = page.get_by_role('button', name=re.compile('edit', re.I)).first
+    edit_button = page.get_by_role('button', name=re.compile('edit', re.IGNORECASE)).first
     if _is_visible(edit_button, timeout=5000):
         edit_button.click()
 
@@ -203,7 +196,7 @@ def _replace_professional_summary(page: Page, about_text: str) -> None:
             page.keyboard.press('Enter')
         page.keyboard.insert_text(paragraph)
 
-    page.get_by_role('button', name=re.compile('^done$', re.I)).first.click()
+    page.get_by_role('button', name=re.compile('^done$', re.IGNORECASE)).first.click()
 
 
 def _confirm_about_preview(page: Page, about_text: str) -> None:
@@ -216,9 +209,7 @@ def _replace_technical_skills(page: Page, skills: list[str]) -> None:
     rows = _draggable_rows(page, 'droppable-certificate')
     row_count = rows.count()
     if row_count < len(skills):
-        raise FlowCVError(
-            f'FlowCV technical skills section has {row_count} rows, cannot write {len(skills)} lines'
-        )
+        raise FlowCVError(f'FlowCV technical skills section has {row_count} rows, cannot write {len(skills)} lines')
 
     for index, line in enumerate(skills):
         title, content = _split_skill_line(line)
@@ -274,13 +265,12 @@ def _confirm_project_order(page: Page, requested_order: list[str]) -> None:
     expected_prefix = [_normalize_match_text(title) for title in matched]
     if visible_order[: len(expected_prefix)] != expected_prefix:
         raise FlowCVError(
-            'Project reorder verification failed. '
-            f'Expected prefix {matched}, got {current[:len(matched)]}'
+            f'Project reorder verification failed. Expected prefix {matched}, got {current[: len(matched)]}'
         )
 
 
 def _download_pdf(page: Page, target_path: Path) -> None:
-    download_button = page.get_by_role('button', name=re.compile('download', re.I)).first
+    download_button = page.get_by_role('button', name=re.compile('download', re.IGNORECASE)).first
     with page.expect_download(timeout=60000) as download_info:
         download_button.click()
     download = download_info.value
@@ -309,7 +299,7 @@ def _receives_pointer_events(locator: Locator) -> bool:
                 }"""
             )
         )
-    except Exception:
+    except PlaywrightError:
         return False
 
 
@@ -386,7 +376,7 @@ def _open_row_editor(page: Page, row: Locator) -> None:
             row.focus()
             page.keyboard.press('Enter')
 
-    done = page.get_by_role('button', name=re.compile(r'^(done|save)$', re.I)).first
+    done = page.get_by_role('button', name=re.compile(r'^(done|save)$', re.IGNORECASE)).first
     fields = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
     try:
         done.wait_for(state='visible', timeout=5000)
@@ -401,7 +391,7 @@ def _replace_skill_editor_fields(page: Page, title: str, content: str) -> None:
 
     _replace_field_text(page, fields[0], title)
     _replace_field_text(page, fields[1], content)
-    done = page.get_by_role('button', name=re.compile(r'^(done|save)$', re.I)).first
+    done = page.get_by_role('button', name=re.compile(r'^(done|save)$', re.IGNORECASE)).first
     if not _is_visible(done, timeout=5000):
         raise FlowCVError('Could not find Done/Save button after editing FlowCV skill row')
     done.click()
@@ -409,8 +399,8 @@ def _replace_skill_editor_fields(page: Page, title: str, content: str) -> None:
 
 def _skill_editor_fields(page: Page) -> list[Locator]:
     labeled_fields = [
-        page.get_by_label(re.compile(r'^(word|title|name)$', re.I)).first,
-        page.get_by_label(re.compile(r'^(info|description|content)$', re.I)).first,
+        page.get_by_label(re.compile(r'^(word|title|name)$', re.IGNORECASE)).first,
+        page.get_by_label(re.compile(r'^(info|description|content)$', re.IGNORECASE)).first,
     ]
     if all(_is_visible(field, timeout=500) for field in labeled_fields):
         return labeled_fields
@@ -419,9 +409,7 @@ def _skill_editor_fields(page: Page) -> list[Locator]:
 
 
 def _visible_editor_fields(page: Page) -> list[Locator]:
-    fields = page.locator(
-        'input:not([type="hidden"]), textarea, [contenteditable="true"]'
-    )
+    fields = page.locator('input:not([type="hidden"]), textarea, [contenteditable="true"]')
     visible: list[Locator] = []
     for index in range(fields.count()):
         field = fields.nth(index)
@@ -486,11 +474,7 @@ def _normalize_project_name(value: str) -> str:
 def _project_names_match(current: str, requested: str) -> bool:
     if not current or not requested:
         return False
-    return (
-        current == requested
-        or current.startswith(f'{requested} ')
-        or requested.startswith(f'{current} ')
-    )
+    return current == requested or current.startswith(f'{requested} ') or requested.startswith(f'{current} ')
 
 
 def _keyboard_reorder_project(page: Page, source_index: int, target_index: int) -> bool:
@@ -505,11 +489,11 @@ def _keyboard_reorder_project(page: Page, source_index: int, target_index: int) 
         page.keyboard.press('Space')
         page.wait_for_timeout(500)
         return True
-    except Exception:
+    except PlaywrightError:
         try:
             page.keyboard.press('Escape')
-        except Exception:
-            pass
+        except PlaywrightError:
+            return False
         return False
 
 
