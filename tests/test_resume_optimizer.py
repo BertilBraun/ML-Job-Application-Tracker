@@ -105,7 +105,7 @@ def test_resume_optimization_requires_application_plan():
 
 def test_optimizer_defines_provider_models_without_temperature():
     assert resume_optimizer.GEMINI_MODEL_NAME == 'gemini-3.1-pro-preview'
-    assert resume_optimizer.OPENAI_MODEL_NAME == 'gpt-5.5'
+    assert resume_optimizer.OPENAI_MODEL_NAME == 'gpt-6-sol'
     assert 'temperature=' not in inspect.getsource(resume_optimizer.optimize_resume)
 
 
@@ -145,7 +145,7 @@ def test_generate_resume_optimization_uses_openai_responses_parse(monkeypatch):
     monkeypatch.setattr(resume_optimizer, '_get_openai_client', lambda: FakeOpenAIClient())
 
     assert resume_optimizer._generate_resume_optimization('Prompt content') is result
-    assert captured['model'] == 'gpt-5.5'
+    assert captured['model'] == 'gpt-6-sol'
     assert captured['input'] == [
         {'role': 'system', 'content': resume_optimizer._SYSTEM},
         {'role': 'user', 'content': 'Prompt content'},

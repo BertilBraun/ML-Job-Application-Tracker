@@ -15,6 +15,7 @@ load_dotenv()
 
 CACHE_DIR = Path(__file__).parent.parent / 'cache'
 REQUEST_TIMEOUT_MS = 60_000
+DEFAULT_ANALYSIS_MODEL = 'gemini-3.5-flash-lite'
 
 client: genai.Client | None = None
 
@@ -91,14 +92,14 @@ Do not return a recommendation. Recommendation and ranking are computed determin
     return _system_prompt
 
 
-def _analysis_cache_path(job: JobListing, system_prompt: str) -> Path:
-    key_material = f'{system_prompt}\n{job.model_dump_json()}'
+def _analysis_cache_path(job: JobListing, system_prompt: str, model_name: str) -> Path:
+    key_material = f'{model_name}\n{system_prompt}\n{job.model_dump_json()}'
     key = hashlib.md5(key_material.encode()).hexdigest()
     return CACHE_DIR / f'{key}_analysis.json'
 
 
-def _load_analysis_cache(job: JobListing, system_prompt: str) -> JobAnalysis | None:
-    path = _analysis_cache_path(job, system_prompt)
+def _load_analysis_cache(job: JobListing, system_prompt: str, model_name: str) -> JobAnalysis | None:
+    path = _analysis_cache_path(job, system_prompt, model_name)
     if path.exists():
         cached = JobAnalysis.model_validate_json(path.read_text(encoding='utf-8'))
         raw = _RawJobAnalysis.model_validate(cached.model_dump())
@@ -106,12 +107,12 @@ def _load_analysis_cache(job: JobListing, system_prompt: str) -> JobAnalysis | N
     return None
 
 
-def _save_analysis_cache(job: JobListing, system_prompt: str, analysis: JobAnalysis) -> None:
+def _save_analysis_cache(job: JobListing, system_prompt: str, model_name: str, analysis: JobAnalysis) -> None:
     CACHE_DIR.mkdir(exist_ok=True)
-    _analysis_cache_path(job, system_prompt).write_text(analysis.model_dump_json(), encoding='utf-8')
+    _analysis_cache_path(job, system_prompt, model_name).write_text(analysis.model_dump_json(), encoding='utf-8')
 
 
-def analyze_job(job: JobListing) -> JobAnalysis | None:
+def analyze_job(job: JobListing, *, model_name: str | None = None) -> JobAnalysis | None:
     global client
     if client is None:
         client = genai.Client(
@@ -120,8 +121,9 @@ def analyze_job(job: JobListing) -> JobAnalysis | None:
         )
 
     system_prompt = _build_system_prompt()
+    selected_model = model_name or os.getenv('GEMINI_ANALYSIS_MODEL', DEFAULT_ANALYSIS_MODEL)
 
-    cached = _load_analysis_cache(job, system_prompt)
+    cached = _load_analysis_cache(job, system_prompt, selected_model)
     if cached is not None:
         print('      (cached)')
         return cached
@@ -150,7 +152,7 @@ Date Posted: {job.date_added or 'Not specified'}
 
     try:
         response = client.models.generate_content(
-            model='gemini-3.1-flash-lite',
+            model=selected_model,
             contents=content,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -162,7 +164,7 @@ Date Posted: {job.date_added or 'Not specified'}
             raise ValueError('Empty response from model')
         raw = _RawJobAnalysis.model_validate_json(response.text)
         result = build_job_analysis(raw, job)
-        _save_analysis_cache(job, system_prompt, result)
+        _save_analysis_cache(job, system_prompt, selected_model, result)
         return result
     except Exception as error:  # noqa: BLE001 - provider and validation failures both invalidate this result.
         print(f'    Analysis error: {error}')

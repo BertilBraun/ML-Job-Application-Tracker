@@ -19,7 +19,7 @@ DEFAULT_LLM_PROVIDER = 'gemini'
 GEMINI_PROVIDER = 'gemini'
 OPENAI_PROVIDER = 'openai'
 GEMINI_MODEL_NAME = 'gemini-3.1-pro-preview'
-OPENAI_MODEL_NAME = 'gpt-5.5'
+OPENAI_MODEL_NAME = 'gpt-6-sol'
 OPENAI_REASONING_EFFORT = 'medium'
 
 _gemini_client: genai.Client | None = None
