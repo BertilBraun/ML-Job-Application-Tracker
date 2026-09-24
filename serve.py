@@ -9,17 +9,17 @@ import json
 import re
 import threading
 import unicodedata
-from difflib import SequenceMatcher
-from io import BytesIO
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from html import escape
+from io import BytesIO
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
 from playwright.sync_api import sync_playwright
-
-from src.db import get_db, init_db
+from pydantic import ValidationError
 from src.analyzer import analyze_job
+from src.db import get_db, init_db
 from src.flowcv_automation import (
     DOWNLOAD_DIR,
     FlowCVError,
@@ -110,7 +110,7 @@ _SUBJECT_PREFIX = {'en': 'Application for', 'de': 'Bewerbung als'}
 
 
 def _clean_job_title(title: str) -> str:
-    return re.sub(r'\s*\([^()]*(?:verifiziert|stellenanzeige)[^()]*\)', '', title, flags=re.I).strip()
+    return re.sub(r'\s*\([^()]*(?:verifiziert|stellenanzeige)[^()]*\)', '', title, flags=re.IGNORECASE).strip()
 
 
 def _normalize_match_text(value: str) -> str:
@@ -142,8 +142,8 @@ def _normalize_company_for_match(company: str) -> str:
 
 def _normalize_title_for_match(title: str) -> str:
     title = re.sub(r'\([^)]*\)', ' ', title or '')
-    title = re.sub(r'\b[fmwd]{1,4}\b', ' ', title, flags=re.I)
-    title = re.sub(r'\b(m|w|d|f|x)\s*/\s*(m|w|d|f|x)(?:\s*/\s*(m|w|d|f|x))*\b', ' ', title, flags=re.I)
+    title = re.sub(r'\b[fmwd]{1,4}\b', ' ', title, flags=re.IGNORECASE)
+    title = re.sub(r'\b(m|w|d|f|x)\s*/\s*(m|w|d|f|x)(?:\s*/\s*(m|w|d|f|x))*\b', ' ', title, flags=re.IGNORECASE)
     return _normalize_match_text(title)
 
 
@@ -222,7 +222,7 @@ def _cover_letter_html(row: dict) -> str:
         title=_clean_job_title(row['job_title'] or 'Application'),
         company=row['company'] or '',
         subject_prefix=_SUBJECT_PREFIX.get(language, _SUBJECT_PREFIX['en']),
-        date_line=_format_letter_date(datetime.now(), language),
+        date_line=_format_letter_date(datetime.now().astimezone(), language),
         letter_html=_paragraphs(row['cover_letter']),
     )
 
@@ -246,7 +246,7 @@ def _job_from_application_row(row: dict) -> tuple[JobListing, JobAnalysis] | Non
             JobListing.model_validate_json(row['job_payload']),
             JobAnalysis.model_validate_json(row['analysis_payload']),
         )
-    except Exception:
+    except ValidationError:
         return None
 
 
@@ -442,7 +442,7 @@ def import_application_url():
 
     try:
         job, imported_page = import_job_from_url(url)
-    except Exception as exc:
+    except Exception as exc:  # noqa BLE001 - browser and provider failures must be reported to the caller.
         return jsonify({'error': f'Job import failed: {exc}'}), 500
 
     analysis = analyze_job(job)
@@ -476,7 +476,7 @@ def import_application_url():
                 """INSERT INTO applications
                    (job_url, job_title, company, listing_url, apply_url, location, salary, status,
                     created_at, job_payload, analysis_payload)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'interested', ?, ?, ?)""",
                 (
                     job.url,
                     job.title,
@@ -493,11 +493,10 @@ def import_application_url():
             app_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             conn.execute(
                 'INSERT INTO events (application_id, created_at, content) VALUES (?, ?, ?)',
-                (app_id, _now(), f'Imported job URL via Playwright Markdown: {imported_page.final_url}'),
+                (app_id, _now(), f'Interested in imported job URL: {imported_page.final_url}'),
             )
             existing_flag = False
 
-    _start_background_generation(app_id)
     return jsonify(
         {
             'id': app_id,

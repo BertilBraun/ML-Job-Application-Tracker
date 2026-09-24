@@ -5,9 +5,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-
 import serve
-import src.db as db
+from src import db
 from src.models import (
     ApplicationPlan,
     CandidateFit,
@@ -157,7 +156,7 @@ def test_generate_materials_uses_stored_job_payload(client, monkeypatch):
         )
 
     monkeypatch.setattr(serve, 'optimize_resume', fake_optimize_resume)
-    monkeypatch.setattr(serve, '_load_results', lambda: [])
+    monkeypatch.setattr(serve, '_load_results', list)
 
     response = client.post(f'/api/applications/{app_id}/generate')
 
@@ -196,7 +195,7 @@ def test_background_generation_endpoint_queues_work(client, monkeypatch):
     assert saved[0] == 'generating'
 
 
-def test_import_application_url_tracks_analyzes_and_queues_generation(client, monkeypatch):
+def test_import_application_url_tracks_interest_without_generating(client, monkeypatch):
     job = JobListing(
         title='Imported ML Engineer',
         company='Imported GmbH',
@@ -211,11 +210,10 @@ def test_import_application_url_tracks_analyzes_and_queues_generation(client, mo
         lambda url: (job, SimpleNamespace(final_url=url, markdown='# Imported ML Engineer')),
     )
     monkeypatch.setattr(serve, 'analyze_job', lambda job_arg: analysis)
-    captured = {}
     monkeypatch.setattr(
         serve,
         '_start_background_generation',
-        lambda app_id_arg, force_regenerate=False: captured.update({'app_id': app_id_arg}),
+        lambda app_id_arg, force_regenerate=False: pytest.fail('Import must not generate materials'),
     )
 
     response = client.post('/api/applications/import-url', json={'url': 'https://company.example/job'})
@@ -223,13 +221,14 @@ def test_import_application_url_tracks_analyzes_and_queues_generation(client, mo
     assert response.status_code == 201
     body = response.get_json()
     assert body['job']['title'] == 'Imported ML Engineer'
-    assert captured['app_id'] == body['id']
     with sqlite3.connect(db.DB_PATH) as conn:
         saved = conn.execute(
-            'SELECT job_title, company, job_payload, analysis_payload FROM applications WHERE id = ?',
+            'SELECT job_title, company, job_payload, analysis_payload, status, materials_status FROM applications WHERE id = ?',
             (body['id'],),
         ).fetchone()
     assert saved[0] == 'Imported ML Engineer'
     assert saved[1] == 'Imported GmbH'
     assert 'Imported ML Engineer' in saved[2]
     assert 'Build ML systems.' in saved[3]
+    assert saved[4] == 'interested'
+    assert saved[5] == ''

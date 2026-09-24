@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-import re
+import logging
 import os
+import re
 from dataclasses import dataclass
 
 from google import genai
 from google.genai import types
-from playwright.sync_api import Page
+from html_to_markdown import convert
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
 
 from .job_quality import audit_job_listing, normalize_job_listing
 from .models import JobListing
-from .resume_optimizer import _get_model_name, GEMINI_PROVIDER
-
+from .resume_optimizer import GEMINI_PROVIDER, _get_model_name
 
 MAX_MARKDOWN_CHARS = 45000
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -98,8 +100,7 @@ def parse_job_listing_from_markdown(page: ImportedJobPage) -> JobListing:
     if not response.text:
         raise ValueError('Empty job extraction response')
     job = JobListing.model_validate_json(response.text)
-    if not job.url:
-        job.url = page.final_url or page.url
+    job.url = page.final_url or page.url
     normalized = normalize_job_listing(job)
     audit = audit_job_listing('manual_import', normalized)
     if not audit.accepted:
@@ -110,7 +111,7 @@ def parse_job_listing_from_markdown(page: ImportedJobPage) -> JobListing:
 
 def import_job_from_url(url: str) -> tuple[JobListing, ImportedJobPage]:
     clean_url = url.strip()
-    if not re.match(r'^https?://', clean_url, flags=re.I):
+    if not re.match(r'^https?://', clean_url, flags=re.IGNORECASE):
         raise ValueError('URL must start with http:// or https://')
     page = fetch_job_page_markdown(clean_url)
     job = parse_job_listing_from_markdown(page)
@@ -136,11 +137,12 @@ def _rendered_html_with_frames(page: Page) -> str:
             continue
         try:
             frame.wait_for_load_state('domcontentloaded', timeout=5000)
-        except Exception:
-            pass
+        except PlaywrightError as error:
+            logger.debug('Frame did not settle: %s', error)
         try:
             frame_html = frame.locator('body').evaluate('(body) => body.outerHTML', timeout=5000)
-        except Exception:
+        except PlaywrightError as error:
+            logger.debug('Could not read frame: %s', error)
             continue
         if frame_html.strip():
             chunks.append(f'<section data-source-frame="{frame.url}">{frame_html}</section>')
@@ -148,17 +150,7 @@ def _rendered_html_with_frames(page: Page) -> str:
 
 
 def _html_to_markdown(html: str) -> str:
-    try:
-        from html_to_markdown import convert_to_markdown
-
-        return convert_to_markdown(html, heading_style='atx', bullets='-', wrap=True, wrap_width=100)
-    except Exception:
-        from bs4 import BeautifulSoup
-
-        soup = BeautifulSoup(html, 'html.parser')
-        for tag in soup(['script', 'style', 'noscript', 'svg']):
-            tag.decompose()
-        return soup.get_text('\n')
+    return convert(html).content
 
 
 def _clean_markdown(markdown: str) -> str:

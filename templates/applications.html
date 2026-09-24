@@ -54,6 +54,7 @@
     border-left: 4px solid #2d3748; overflow: hidden;
   }
   .app-card.status-draft       { border-left-color: #475569; }
+  .app-card.status-interested  { border-left-color: #06b6d4; }
   .app-card.status-applied      { border-left-color: #3b82f6; }
   .app-card.status-responded    { border-left-color: #8b5cf6; }
   .app-card.status-interviewing { border-left-color: #f59e0b; }
@@ -80,6 +81,7 @@
     border-radius: 6px; white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
   }
   .status-draft       { background: #1c1c2e; color: #94a3b8; }
+  .status-interested  { background: #083344; color: #67e8f9; }
   .status-applied     { background: #1e3a5f; color: #60a5fa; }
   .status-responded   { background: #2e1b4e; color: #c4b5fd; }
   .status-interviewing{ background: #451a03; color: #fbbf24; }
@@ -186,6 +188,8 @@
     padding: 6px 8px;
   }
   .metadata-empty { color: #475569; }
+  .extraction-review { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; color: #94a3b8; line-height: 1.5; }
+  .extraction-review summary { cursor: pointer; color: #67e8f9; }
 </style>
 </head>
 <body>
@@ -206,9 +210,9 @@
 </div>
 
 <script>
-const STATUSES = ['draft','applied','responded','interviewing','offer','rejected','withdrawn'];
+const STATUSES = ['interested','draft','applied','responded','interviewing','offer','rejected','withdrawn'];
 const STATUS_LABELS = {
-  draft: 'Draft', applied: 'Applied', responded: 'Responded',
+  interested: 'Interested', draft: 'Draft', applied: 'Applied', responded: 'Responded',
   interviewing: 'Interviewing', offer: 'Offer', rejected: 'Rejected', withdrawn: 'Withdrawn',
 };
 
@@ -270,9 +274,9 @@ async function importJobUrl() {
       return;
     }
     openAppId = String(data.id);
-    status.textContent = 'Tracked. Materials generation started.';
+    status.textContent = 'Tracked as interested. Review extracted fields below.';
     item.classList.add('done');
-    item.textContent = `Tracked ${data.job?.title || 'job'} at ${data.job?.company || 'company'}; generating materials.`;
+    item.textContent = `Tracked ${data.job?.title || 'job'} at ${data.job?.company || 'company'}; no materials generated.`;
     await load();
   } catch (err) {
     status.textContent = 'Import failed';
@@ -317,6 +321,8 @@ function renderCards() {
 }
 
 function renderCard(a) {
+  let job = null;
+  try { job = a.job_payload ? JSON.parse(a.job_payload) : null; } catch { job = null; }
   const applied = a.applied_at ? new Date(a.applied_at).toLocaleDateString() : null;
   const technicalSkills = parseCvList(a.technical_skills);
   const projectOrder = parseCvList(a.project_order);
@@ -356,6 +362,15 @@ function renderCard(a) {
     <div class="body-grid">
 
       <div>
+        ${job ? `<div class="section">
+          <div class="section-label">Imported listing · verify extraction</div>
+          <details class="extraction-review">
+            <summary>Title, company, location, salary, seniority, requirements and description</summary>
+            <div>Title: ${esc(job.title)}<br>Company: ${esc(job.company)}<br>Location: ${esc(job.location || 'Not specified')}<br>Salary: ${esc(job.salary || 'Not specified')}<br>Seniority: ${esc((job.seniority || []).join(', ') || 'Not specified')}<br>Minimum experience: ${esc(job.minimum_years_experience == null ? 'Not specified' : `${job.minimum_years_experience} years`)}<br>Tech stack: ${esc((job.tech_stack || []).join(', ') || 'Not specified')}</div>
+            <div>Requirements:\n${esc(job.requirements || 'Not specified')}</div>
+            <div>Description:\n${esc(job.description || 'Not specified')}</div>
+          </details>
+        </div>` : ''}
         <div class="section">
           <div class="section-label">Status</div>
           <select class="status-select" id="body-status-${a.id}" onchange="updateStatus(${a.id}, this.value)">

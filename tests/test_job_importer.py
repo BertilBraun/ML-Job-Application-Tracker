@@ -3,8 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
-import src.job_importer as job_importer
+from src import job_importer
 from src.job_importer import ImportedJobPage
 from src.models import JobListing
 
@@ -58,3 +57,26 @@ def test_parse_job_listing_rejects_placeholder_extraction(monkeypatch: pytest.Mo
 
     with pytest.raises(ValueError, match='failed quality checks'):
         job_importer.parse_job_listing_from_markdown(_page())
+
+
+def test_parse_job_listing_uses_fetched_url_not_model_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_response(
+        monkeypatch,
+        JobListing(
+            title='ML Engineer',
+            company='Example GmbH',
+            url='https://unrelated.example/job',
+            description='Build, train, evaluate, and deploy machine-learning systems. ' * 10,
+        ),
+    )
+
+    job = job_importer.parse_job_listing_from_markdown(_page())
+
+    assert job.url == 'https://example.com/job'
+
+
+def test_html_to_markdown_preserves_job_structure() -> None:
+    markdown = job_importer._html_to_markdown('<h1>ML Engineer</h1><p>Build models.</p>')
+
+    assert '# ML Engineer' in markdown
+    assert 'Build models.' in markdown
