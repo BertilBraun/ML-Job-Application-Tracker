@@ -362,7 +362,9 @@ Use concrete evidence where relevant:
 * arXiv:2609.20995, Voice-Light: A Full-Duplex Cascaded Voice Agent with Causal Turn-Taking and Speculative Generation
 * arXiv:2609.24492, Identity-Consistent Analysis of Long-Shot Windsurfing Video: A Domain-Specific Offline Tracking System
 * LLM-Light public technical report on artifact-addressed execution (arXiv submission pending; not peer reviewed)
-* completed Chess result of 3,167 estimated Stockfish-13-calibrated Elo at 80,000 searches from a three-day, $52 training run; do not invent the unfinished terminal-run result
+* final Chess teacher checkpoint: 3,251 estimated Stockfish-13-calibrated Elo at 100,000 searches with a 2.5-day, $43 reported-checkpoint training-compute basis; the cost excludes discarded branches and separate evaluation compute
+* 470k-parameter Chess student (13.4x smaller): 2,873 estimated calibrated Elo at 100,000 searches; its benchmark rung scored 0.730, so avoid overstating the precision of that estimate
+* Chess technical report and refreshed public artifacts are still in preparation; do not cite them as published
 
 Use technically precise objects:
 

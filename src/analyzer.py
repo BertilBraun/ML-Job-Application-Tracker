@@ -1,6 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -65,10 +66,10 @@ Score each dimension independently on a 0–10 scale:
 
 3. LOCATION
    Assess against the candidate's preferences stated in the profile.
-   - WORKS (score 7–10): hybrid in south Germany / Switzerland / Austria, OR genuinely remote-from-Germany
-   - BORDERLINE (score 4–6): remote role but unclear if remote-from-Germany is genuinely supported
-   - DOESN'T WORK (works=False, score 0–3): on-site outside DACH, or "remote" that clearly requires local presence
-   For any non-DACH remote role: explicitly assess whether remote-from-Germany is real or just marketing copy.
+   - WORKS (score 7–10): southern Germany with substantial remote time, or genuinely remote from Germany with manageable travel
+   - BORDERLINE (score 4–6): office days or travel are unclear, including hybrid roles elsewhere in Switzerland or Austria
+   - DOESN'T WORK (works=False, score 0–3): required on-site presence is impractical, or "remote" excludes working from Germany
+   Verify the required office days and whether remote-from-Germany is genuinely supported. A hybrid label alone is not enough.
 
 4. CANDIDATE FIT — return two deliberately different judgments
    a. `score` and `reasoning`: TECHNICAL MATCH and growth potential.
@@ -91,7 +92,7 @@ Do not return a recommendation. Recommendation and ranking are computed determin
 
 
 def _analysis_cache_path(job: JobListing, system_prompt: str) -> Path:
-    key_material = '\n'.join([system_prompt, job.model_dump_json()])
+    key_material = f'{system_prompt}\n{job.model_dump_json()}'
     key = hashlib.md5(key_material.encode()).hexdigest()
     return CACHE_DIR / f'{key}_analysis.json'
 
@@ -163,6 +164,6 @@ Date Posted: {job.date_added or 'Not specified'}
         result = build_job_analysis(raw, job)
         _save_analysis_cache(job, system_prompt, result)
         return result
-    except Exception as e:
-        print(f'    Analysis error: {e}')
+    except Exception as error:  # noqa: BLE001 - provider and validation failures both invalidate this result.
+        print(f'    Analysis error: {error}')
         return None

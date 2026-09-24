@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import src.analyzer as analyzer
 import pytest
+from src import analyzer
 
 
 def test_analyzer_separates_technical_match_from_cv_screening(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -15,3 +15,5 @@ def test_analyzer_separates_technical_match_from_cv_screening(monkeypatch: pytes
     assert 'CURRENT CV SCREENING FIT' in prompt
     assert 'Do not call those equivalent' in prompt
     assert 'Do not return a recommendation' in prompt
+    assert 'substantial remote time' in prompt
+    assert 'A hybrid label alone is not enough' in prompt

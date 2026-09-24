@@ -176,6 +176,8 @@ def test_optimizer_prompt_prioritizes_current_project_fit():
     assert 'arXiv:2607.21831' in system_prompt
     assert 'arXiv:2609.20995' in system_prompt
     assert 'arXiv:2609.24492' in system_prompt
+    assert '3,251 estimated Stockfish-13-calibrated Elo' in system_prompt
+    assert 'Chess technical report and refreshed public artifacts are still in preparation' in system_prompt
     assert '8+ years of hands-on software development' in system_prompt
     assert 'Do not turn it into a claim of 8+ years of full-time professional experience' in system_prompt
     assert 'public technical report' in system_prompt
